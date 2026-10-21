@@ -30,66 +30,70 @@ export async function convertPhotoTo3DAsset(params: {
     onStatusUpdate,
   } = params;
 
-  if (apiKey && apiKey.trim().length > 10) {
-    fal.config({
-      credentials: apiKey.trim(),
+  if (!apiKey || apiKey.trim().length < 10) {
+    throw new Error(
+      'Chave da Fal.ai (FAL_KEY) não encontrada ou inválida. Por favor, insira sua chave da fal.ai no campo abaixo para processar na GPU.'
+    );
+  }
+
+  fal.config({
+    credentials: apiKey.trim(),
+  });
+
+  onStatusUpdate?.(
+    `Enviando ${photoDataUrls.length} foto(s) Multi-View para o storage da Fal.ai...`
+  );
+
+  // Faz upload de todas as fotos (Frente + 45° Esq + 45° Dir) em paralelo para o CDN da Fal
+  const publicImageUrls = await Promise.all(
+    photoDataUrls.map(async (dataUrl, idx) => {
+      if (dataUrl.startsWith('data:')) {
+        const blob = dataUrlToBlob(dataUrl);
+        const uploaded = await fal.storage.upload(blob);
+        onStatusUpdate?.(`Foto ${idx + 1}/${photoDataUrls.length} enviada para o CDN...`);
+        return uploaded;
+      }
+      return dataUrl;
+    })
+  );
+
+  if (model === 'fal-ai/hyper3d/rodin') {
+    onStatusUpdate?.(
+      `Iniciando Hyper3D Rodin com ${publicImageUrls.length} foto(s) Multi-View (Geometria + Textura PBR)...`
+    );
+
+    const result: any = await fal.subscribe('fal-ai/hyper3d/rodin', {
+      input: {
+        input_image_urls: publicImageUrls,
+        geometry_file_format: 'glb',
+        material: 'PBR',
+        quality: 'medium',
+      },
+      logs: true,
+      onQueueUpdate: (update) => {
+        if (update.status === 'IN_PROGRESS') {
+          const lastLog = update.logs?.[update.logs.length - 1]?.message;
+          onStatusUpdate?.(lastLog || 'Calculando profundidade e fusão dos ângulos na GPU...');
+        }
+      },
     });
 
-    onStatusUpdate?.(
-      `Enviando ${photoDataUrls.length} foto(s) Multi-View para a Fal.ai...`
-    );
+    const data = result?.data || result;
+    const glbUrl = data?.model_mesh?.url || data?.model_file?.url || data?.glb?.url;
 
-    // Faz upload de todas as fotos (Frente + 45° Esq + 45° Dir) em paralelo para o CDN da Fal
-    const publicImageUrls = await Promise.all(
-      photoDataUrls.map(async (dataUrl, idx) => {
-        if (dataUrl.startsWith('data:')) {
-          const blob = dataUrlToBlob(dataUrl);
-          const uploaded = await fal.storage.upload(blob);
-          onStatusUpdate?.(`Foto ${idx + 1}/${photoDataUrls.length} enviada para o CDN...`);
-          return uploaded;
-        }
-        return dataUrl;
-      })
-    );
-
-    if (model === 'fal-ai/hyper3d/rodin') {
-      onStatusUpdate?.(
-        `Processando Hyper3D Rodin Multi-View com ${publicImageUrls.length} ângulos (Geometria + Textura PBR 4K)...`
-      );
-
-      const result: any = await fal.subscribe('fal-ai/hyper3d/rodin', {
-        input: {
-          input_image_urls: publicImageUrls, // Envia o array com as 3 fotos juntas em 1 única requisição!
-          geometry_file_format: 'glb',
-          material: 'PBR',
-          quality: 'medium',
-        },
-        logs: true,
-        onQueueUpdate: (update) => {
-          if (update.status === 'IN_PROGRESS') {
-            const lastLog = update.logs?.[update.logs.length - 1]?.message;
-            onStatusUpdate?.(lastLog || 'Calculando profundidade e fusão dos 3 ângulos...');
-          }
-        },
-      });
-
-      const data = result?.data || result;
-      const glbUrl = data?.model_file?.url || data?.model_mesh?.url || data?.glb?.url;
-
-      if (glbUrl) {
-        return {
-          id: `asset-${Date.now()}`,
-          title: `${title} (${publicImageUrls.length} Fotos Multi-View)`,
-          sourcePhotoUrl: photoDataUrls[0],
-          assetType,
-          pipelineUsed: 'fal-ai/hyper3d/rodin',
-          glbUrl,
-          createdAt: new Date().toLocaleTimeString('pt-BR'),
-        };
-      }
-      throw new Error('Hyper3D Rodin não retornou o arquivo .glb');
+    if (glbUrl) {
+      return {
+        id: `asset-${Date.now()}`,
+        title: `${title} (${publicImageUrls.length} Foto(s) Multi-View)`,
+        sourcePhotoUrl: photoDataUrls[0],
+        assetType,
+        pipelineUsed: 'fal-ai/hyper3d/rodin',
+        glbUrl,
+        createdAt: new Date().toLocaleTimeString('pt-BR'),
+      };
     }
-
+    throw new Error('Hyper3D Rodin não retornou o arquivo .glb');
+  } else if (model === 'fal-ai/trellis') {
     // Modelo Trellis (Microsoft - Gera GLB + Gaussian Splatting usando a foto frontal)
     onStatusUpdate?.('Executando Trellis 3D (Malha GLB + Gaussian Splat)...');
     const result: any = await fal.subscribe('fal-ai/trellis', {
@@ -126,18 +130,10 @@ export async function convertPhotoTo3DAsset(params: {
         createdAt: new Date().toLocaleTimeString('pt-BR'),
       };
     }
+    throw new Error('Trellis não retornou arquivo 3D válido (.glb ou .ply)');
   }
 
-  // Fallback demo local quando sem chave
-  await new Promise((r) => setTimeout(r, 1200));
-  return {
-    id: `demo-${Date.now()}`,
-    title: `${title} (Demo Procedural)`,
-    sourcePhotoUrl: photoDataUrls[0],
-    assetType,
-    pipelineUsed: 'demo-procedural',
-    createdAt: new Date().toLocaleTimeString('pt-BR'),
-  };
+  throw new Error('Nenhum modelo de IA válido foi executado.');
 }
 
 export async function generateHairSimulation2D(params: {

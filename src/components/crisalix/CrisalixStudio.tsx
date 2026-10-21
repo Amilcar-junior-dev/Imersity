@@ -10,10 +10,14 @@ import {
   CheckCircle2,
   Camera,
   Upload,
+  KeyRound,
+  Loader2,
+  Trash2,
 } from 'lucide-react';
 import { xrStore } from '../../store/xrStore';
 import { useVisagismStore, HAIR_PRESETS } from '../../store/useVisagismStore';
 import { CrisalixHead3D } from './CrisalixHead3D';
+import { convertPhotoTo3DAsset } from '../../services/falPipeline';
 
 interface CrisalixStudioProps {
   onProcessPhoto?: (dataUrl: string) => void;
@@ -37,6 +41,14 @@ export const CrisalixStudio: React.FC<CrisalixStudioProps> = ({ onProcessPhoto }
     setLeftSidePhoto,
     rightSidePhotoUrl,
     setRightSidePhoto,
+    activeCustomGlbUrl,
+    setActiveCustomGlbUrl,
+    falApiKey,
+    setFalApiKey,
+    isGenerating3D,
+    setIsGenerating3D,
+    addGeneratedAsset,
+    setRenderMode3D,
   } = useVisagismStore();
 
   const [comparisonMode, setComparisonMode] = useState<'antes' | 'depois'>('depois');
@@ -44,6 +56,53 @@ export const CrisalixStudio: React.FC<CrisalixStudioProps> = ({ onProcessPhoto }
   const [morphNoseDepth, setMorphNoseDepth] = useState<number>(1.0);
   const [morphJawWidth, setMorphJawWidth] = useState<number>(1.0);
   const [morphCheekboneLift, setMorphCheekboneLift] = useState<number>(1.0);
+  const [generationStatus, setGenerationStatus] = useState<string>('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleGenerateRodinHead = async () => {
+    setErrorMsg(null);
+    if (!falApiKey || falApiKey.trim().length < 10) {
+      setErrorMsg('Por favor, insira sua chave da Fal.ai (FAL_KEY) no campo abaixo.');
+      return;
+    }
+
+    const availablePhotos = [capturedPhotoDataUrl, leftSidePhotoUrl, rightSidePhotoUrl].filter(
+      Boolean
+    ) as string[];
+
+    if (availablePhotos.length === 0) {
+      setErrorMsg('Adicione pelo menos a foto frontal para gerar o modelo 3D.');
+      return;
+    }
+
+    setIsGenerating3D(true);
+    setGenerationStatus('Iniciando pipeline Multi-View na GPU...');
+
+    try {
+      const asset = await convertPhotoTo3DAsset({
+        photoDataUrls: availablePhotos,
+        title: `Avatar 3D Rodin (${availablePhotos.length} fotos)`,
+        assetType: 'hair_or_bust',
+        model: 'fal-ai/hyper3d/rodin',
+        apiKey: falApiKey,
+        onStatusUpdate: (msg) => setGenerationStatus(msg),
+      });
+
+      if (asset.glbUrl) {
+        addGeneratedAsset(asset);
+        setActiveCustomGlbUrl(asset.glbUrl);
+        setRenderMode3D('custom_glb');
+      } else {
+        throw new Error('O modelo não retornou a URL do arquivo .glb');
+      }
+    } catch (err: any) {
+      console.error('Erro na geração Rodin:', err);
+      setErrorMsg(err?.message || 'Falha na geração do modelo 3D pela Fal.ai.');
+    } finally {
+      setIsGenerating3D(false);
+      setGenerationStatus('');
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
@@ -247,6 +306,84 @@ export const CrisalixStudio: React.FC<CrisalixStudioProps> = ({ onProcessPhoto }
                 </div>
               </div>
               <span className="text-[10px] text-center font-bold text-zinc-300 block truncate">3. 45° Dir</span>
+            </div>
+          </div>
+
+          {/* BOTÃO E STATUS DE RECONSTRUÇÃO 3D REAL (FAL.AI RODIN) */}
+          <div className="pt-2 border-t border-zinc-800/80 space-y-2.5">
+            {activeCustomGlbUrl ? (
+              <div className="p-3 rounded-xl bg-teal-950/60 border border-teal-500/40 space-y-2">
+                <div className="flex items-center justify-between text-xs text-teal-300 font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-teal-400" />
+                    Avatar 3D Rodin Ativo no Viewport
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-teal-900/80 text-teal-200">
+                    .GLB
+                  </span>
+                </div>
+                <p className="text-[10px] text-zinc-300">
+                  Modelo 3D estanque gerado pela Fal.ai ativo no visor com texturas PBR completas.
+                </p>
+                <button
+                  onClick={() => setActiveCustomGlbUrl(null)}
+                  className="w-full py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-700 transition"
+                >
+                  Voltar para Preview Rápido
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <button
+                  disabled={isGenerating3D || !capturedPhotoDataUrl}
+                  onClick={handleGenerateRodinHead}
+                  className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition ${
+                    isGenerating3D
+                      ? 'bg-amber-600/50 text-amber-200 cursor-not-allowed'
+                      : !capturedPhotoDataUrl
+                      ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-amber-500 via-amber-400 to-teal-400 text-zinc-950 hover:brightness-110 shadow-amber-500/20 active:scale-[0.98]'
+                  }`}
+                >
+                  {isGenerating3D ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="truncate">{generationStatus || 'Processando na GPU Fal.ai...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      <span>Gerar Cabeça 3D Real (Fal.ai Rodin)</span>
+                    </>
+                  )}
+                </button>
+
+                {errorMsg && (
+                  <div className="p-2 rounded-lg bg-red-950/60 border border-red-500/40 text-[10px] text-red-300">
+                    {errorMsg}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Input de chave da Fal.ai */}
+            <div className="p-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800/80 space-y-1.5">
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="font-semibold text-zinc-300 flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                  Chave Fal.ai (FAL_KEY):
+                </span>
+                <span className="font-mono text-zinc-400 text-[9px]">
+                  {falApiKey ? '✓ Salva' : 'Requer chave'}
+                </span>
+              </div>
+              <input
+                type="password"
+                placeholder="Insira sua FAL_KEY (ex: f4l-xyz...)"
+                value={falApiKey}
+                onChange={(e) => setFalApiKey(e.target.value)}
+                className="w-full px-2.5 py-1.5 text-[11px] rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-amber-500 font-mono"
+              />
             </div>
           </div>
 

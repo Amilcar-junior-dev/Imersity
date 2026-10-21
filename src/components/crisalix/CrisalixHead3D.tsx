@@ -1,8 +1,34 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { useVisagismStore } from '../../store/useVisagismStore';
 import { buildFaceBufferGeometry } from '../../services/faceMeshBuilder';
+
+const CustomGLBModel: React.FC<{ url: string; scale?: number }> = ({ url, scale = 1.0 }) => {
+  const { scene } = useGLTF(url);
+
+  const normalizedScene = useMemo(() => {
+    const cloned = scene.clone(true);
+    const box = new THREE.Box3().setFromObject(cloned);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const autoScale = maxDim > 0 ? (0.48 / maxDim) * scale : scale;
+
+    cloned.scale.setScalar(autoScale);
+    cloned.position.x = -center.x * autoScale;
+    cloned.position.y = -center.y * autoScale + 0.08;
+    cloned.position.z = -center.z * autoScale;
+
+    return cloned;
+  }, [scene, scale]);
+
+  return <primitive object={normalizedScene} />;
+};
 
 /**
  * Cabelo Masculino 3D Esculpido (Fade, Taper, Topete Texturizado & Quiff):
@@ -197,6 +223,7 @@ export const CrisalixHead3D: React.FC<{
   const groupRef = useRef<THREE.Group>(null);
   const {
     capturedPhotoDataUrl,
+    activeCustomGlbUrl,
     faceLandmarks,
     skinColorHex,
     hairColors,
@@ -260,6 +287,14 @@ export const CrisalixHead3D: React.FC<{
   const isMasculine =
     selectedHairPreset.gender === 'masculino' ||
     selectedHairPreset.styleGeometry.startsWith('male_');
+
+  if (activeCustomGlbUrl) {
+    return (
+      <group ref={groupRef} position={[0, 1.35, -0.65]}>
+        <CustomGLBModel url={activeCustomGlbUrl} scale={1.05} />
+      </group>
+    );
+  }
 
   return (
     <group ref={groupRef} position={[0, 1.35, -0.65]}>
