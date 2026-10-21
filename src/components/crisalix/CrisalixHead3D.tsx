@@ -204,6 +204,8 @@ export const CrisalixHead3D: React.FC<{
   const groupRef = useRef<THREE.Group>(null);
   const {
     capturedPhotoDataUrl,
+    leftSidePhotoUrl,
+    rightSidePhotoUrl,
     faceLandmarks,
     skinColorHex,
     hairColors,
@@ -217,9 +219,11 @@ export const CrisalixHead3D: React.FC<{
     autoRotate3D,
   } = useVisagismStore();
 
-  const [photoTexture, setPhotoTexture] = useState<THREE.Texture | null>(null);
+  const [texFront, setTexFront] = useState<THREE.Texture | null>(null);
+  const [texLeft, setTexLeft] = useState<THREE.Texture | null>(null);
+  const [texRight, setTexRight] = useState<THREE.Texture | null>(null);
 
-  // Carrega a textura da foto da cliente com fidelidade de cor SRGB e filtragem bilinear pura
+  // 1. Carrega Foto Frontal
   useEffect(() => {
     if (!capturedPhotoDataUrl) return;
     const loader = new THREE.TextureLoader();
@@ -231,17 +235,59 @@ export const CrisalixHead3D: React.FC<{
         tex.magFilter = THREE.LinearFilter;
         tex.generateMipmaps = false;
         tex.needsUpdate = true;
-        setPhotoTexture(tex);
+        setTexFront(tex);
       },
       undefined,
-      (err) => {
-        console.warn('Erro ao carregar textura da foto:', err);
-      }
+      (err) => console.warn('Erro ao carregar textura frontal:', err)
     );
   }, [capturedPhotoDataUrl]);
 
-  // Constrói a geometria facial com triangulação sólida contínua (sem buracos)
-  const { geometry: faceGeometry, leftEyePos, rightEyePos } = useMemo(() => {
+  // 2. Carrega Foto Lateral Esquerda (45°)
+  useEffect(() => {
+    if (!leftSidePhotoUrl) {
+      setTexLeft(null);
+      return;
+    }
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      leftSidePhotoUrl,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.generateMipmaps = false;
+        tex.needsUpdate = true;
+        setTexLeft(tex);
+      },
+      undefined,
+      (err) => console.warn('Erro ao carregar textura 45° esquerda:', err)
+    );
+  }, [leftSidePhotoUrl]);
+
+  // 3. Carrega Foto Lateral Direita (45°)
+  useEffect(() => {
+    if (!rightSidePhotoUrl) {
+      setTexRight(null);
+      return;
+    }
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      rightSidePhotoUrl,
+      (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.generateMipmaps = false;
+        tex.needsUpdate = true;
+        setTexRight(tex);
+      },
+      undefined,
+      (err) => console.warn('Erro ao carregar textura 45° direita:', err)
+    );
+  }, [rightSidePhotoUrl]);
+
+  // Constrói a geometria anatômica completa e fechada (sem furos e contínua)
+  const { geometry: faceGeometry } = useMemo(() => {
     return buildFaceBufferGeometry(faceLandmarks, 1.35 * morphNoseDepth);
   }, [faceLandmarks, morphNoseDepth]);
 
@@ -255,80 +301,120 @@ export const CrisalixHead3D: React.FC<{
     selectedHairPreset.gender === 'masculino' ||
     selectedHairPreset.styleGeometry.startsWith('male_');
 
+  // Shader Multi-View PBR: Combina as 3 fotos baseando-se na normal de cada polígono
+  const multiViewMaterial = useMemo(() => {
+    const mat = new THREE.MeshStandardMaterial({
+      roughness: 0.44,
+      metalness: 0.02,
+      side: THREE.DoubleSide,
+    });
+
+    if (texFront) {
+      mat.map = texFront;
+    }
+
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uTexFront = { value: texFront };
+      shader.uniforms.uTexLeft = { value: texLeft || texFront };
+      shader.uniforms.uTexRight = { value: texRight || texFront };
+      shader.uniforms.uHasLeft = { value: texLeft ? 1.0 : 0.0 };
+      shader.uniforms.uHasRight = { value: texRight ? 1.0 : 0.0 };
+      shader.uniforms.uSkinColor = { value: new THREE.Color(skinColorHex) };
+
+      shader.vertexShader = `
+        attribute vec2 uvLeft;
+        attribute vec2 uvRight;
+        varying vec2 vUvLeft;
+        varying vec2 vUvRight;
+        ${shader.vertexShader}
+      `;
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <uv_vertex>',
+        `
+        #include <uv_vertex>
+        vUvLeft = uvLeft;
+        vUvRight = uvRight;
+        `
+      );
+
+      shader.fragmentShader = `
+        uniform sampler2D uTexFront;
+        uniform sampler2D uTexLeft;
+        uniform sampler2D uTexRight;
+        uniform float uHasLeft;
+        uniform float uHasRight;
+        uniform vec3 uSkinColor;
+        varying vec2 vUvLeft;
+        varying vec2 vUvRight;
+        ${shader.fragmentShader}
+      `;
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <map_fragment>',
+        `
+        #ifdef USE_MAP
+          vec4 colF = texture2D(uTexFront, vMapUv);
+          vec4 colL = (uHasLeft > 0.5) ? texture2D(uTexLeft, vUvLeft) : colF;
+          vec4 colR = (uHasRight > 0.5) ? texture2D(uTexRight, vUvRight) : colF;
+
+          vec3 norm = normalize(vNormal);
+
+          // Peso frontal: faces voltadas para frente (+Z)
+          float wFront = clamp(norm.z * 1.3, 0.0, 1.0);
+          wFront = pow(wFront, 2.0);
+
+          // Peso lateral esquerda: normal apontando para (-0.707, 0, 0.707)
+          float wLeft = (uHasLeft > 0.5) ? clamp(dot(norm, vec3(-0.7071, 0.0, 0.7071)) * 1.4, 0.0, 1.0) : 0.0;
+          wLeft = pow(wLeft, 2.0);
+
+          // Peso lateral direita: normal apontando para (0.707, 0, 0.707)
+          float wRight = (uHasRight > 0.5) ? clamp(dot(norm, vec3(0.7071, 0.0, 0.7071)) * 1.4, 0.0, 1.0) : 0.0;
+          wRight = pow(wRight, 2.0);
+
+          float totalW = max(0.0001, wFront + wLeft + wRight);
+          vec3 blendedPhoto = (colF.rgb * wFront + colL.rgb * wLeft + colR.rgb * wRight) / totalW;
+
+          // Transição gradual suave para a cor da pele nas costas da cabeça e pescoço
+          float coverage = clamp((norm.z + 0.38) * 1.6, 0.0, 1.0);
+          vec3 finalSkin = mix(uSkinColor, blendedPhoto, coverage);
+
+          diffuseColor = vec4(finalSkin, 1.0);
+        #else
+          diffuseColor = vec4(uSkinColor, 1.0);
+        #endif
+        `
+      );
+    };
+
+    return mat;
+  }, [texFront, texLeft, texRight, skinColorHex]);
+
   return (
     <group ref={groupRef} position={[0, 1.35, -0.65]}>
       {/* =========================================================================
-          1. MÁSCARA FACIAL ANATÔMICA (COM A TEXTURA 4K DA FOTO DA PESSOA)
-          (Sem furos ou deformações: bochechas, nariz, queixo e olhos nítidos)
+          1. CABEÇA ANATÔMICA COMPLETA E FECHADA (PADRÃO CRISALIX MULTI-VIEW)
+          (Rosto frontal + laterais + mandíbula + orelhas + pescoço contínuo)
          ========================================================================= */}
       <mesh
         geometry={faceGeometry}
+        material={multiViewMaterial}
         position={[0, 0.11, 0.025]}
         scale={[morphJawWidth, morphCheekboneLift, 1.0]}
         castShadow
         receiveShadow
-      >
-        {photoTexture ? (
-          <meshStandardMaterial
-            map={photoTexture}
-            roughness={0.42}
-            metalness={0.02}
-            side={THREE.DoubleSide}
-          />
-        ) : (
-          <meshStandardMaterial color={skinColorHex} roughness={0.45} />
-        )}
+      />
+
+      {/* =========================================================================
+          2. PEDESTAL / BASE DO BUSTO
+         ========================================================================= */}
+      <mesh position={[0, -0.38, -0.04]} scale={[1.55, 0.5, 0.8]}>
+        <sphereGeometry args={[0.23, 32, 24]} />
+        <meshStandardMaterial color="#18181b" roughness={0.68} />
       </mesh>
 
       {/* =========================================================================
-          2. CRÂNIO BASE / PESCOÇO / BUSTO ANATÔMICO
-         ========================================================================= */}
-      <group name="AnatomicalBase">
-        {/* Crânio base sob medida */}
-        <mesh position={[0, 0.13, -0.04]} scale={[0.82 * morphJawWidth, 1.04, 0.92]}>
-          <sphereGeometry args={[0.235, 48, 48]} />
-          <meshStandardMaterial color={skinColorHex} roughness={0.52} />
-        </mesh>
-
-        {/* Cabelo Puxado / Touca Anatômica (Padrão Cirúrgico Crisalix) */}
-        {!showHairLayer && (
-          <mesh position={[0, 0.165, -0.05]} scale={[0.84 * morphJawWidth, 1.05, 0.95]}>
-            <sphereGeometry args={[0.238, 36, 36, 0, Math.PI * 2, 0, Math.PI * 0.7]} />
-            <meshPhysicalMaterial
-              color={hairColors.rootHex}
-              roughness={0.36}
-              clearcoat={0.65}
-              clearcoatRoughness={0.2}
-            />
-          </mesh>
-        )}
-
-        {/* Coque na nuca somente para estilos femininos no modo "Antes" */}
-        {!showHairLayer && !isMasculine && (
-          <mesh position={[0, 0.135, -0.275]}>
-            <sphereGeometry args={[0.078, 24, 24]} />
-            <meshPhysicalMaterial
-              color={hairColors.rootHex}
-              roughness={0.34}
-              clearcoat={0.7}
-            />
-          </mesh>
-        )}
-
-        {/* Pescoço & Base do Busto */}
-        <mesh position={[0, -0.21, -0.04]}>
-          <cylinderGeometry args={[0.088, 0.108, 0.25, 32]} />
-          <meshStandardMaterial color={skinColorHex} roughness={0.55} />
-        </mesh>
-
-        <mesh position={[0, -0.38, -0.04]} scale={[1.55, 0.5, 0.8]}>
-          <sphereGeometry args={[0.23, 32, 24]} />
-          <meshStandardMaterial color="#18181b" roughness={0.68} />
-        </mesh>
-      </group>
-
-      {/* =========================================================================
-          4. CABELO 3D MODULAR (MASCULINO OU FEMININO COM ALTA DEFINIÇÃO)
+          3. CABELO 3D MODULAR (MASCULINO OU FEMININO COM ALTA DEFINIÇÃO)
          ========================================================================= */}
       {showHairLayer && (
         <group position={[0, hairOffsetY, hairOffsetZ]}>

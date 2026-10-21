@@ -129,6 +129,17 @@ function isPointInCircumcircle(
  * Constrói uma BufferGeometry 3D real do rosto da cliente a partir dos 478 landmarks do MediaPipe,
  * mapeando exatamente as coordenadas UV da foto real da cliente e normalizando escala e centro.
  */
+export const FACE_OVAL_INDICES = [
+  10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
+  397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136,
+  172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
+];
+
+/**
+ * Constrói uma BufferGeometry 3D anatômica completa e fechada (estilo Crisalix / 3DMM),
+ * integrando a máscara facial do MediaPipe (468 vértices) diretamente aos anéis laterais
+ * do crânio, têmporas, orelhas e pescoço, com atributos UV frontais e de 45° (Multi-View).
+ */
 export function buildFaceBufferGeometry(
   landmarks: NormalizedLandmark[],
   depthMultiplier = 1.35
@@ -139,7 +150,7 @@ export function buildFaceBufferGeometry(
   leftEyePos: THREE.Vector3;
   rightEyePos: THREE.Vector3;
 } {
-  // Usamos os 468 pontos principais da máscara facial (excluindo os 10 pontos duplicados de íris para não sobrepor triângulos)
+  // Usamos os 468 pontos principais da máscara facial
   const facePts = landmarks.slice(0, 468);
 
   // Centro anatômico de referência (ponte nasal / centro do rosto)
@@ -162,14 +173,18 @@ export function buildFaceBufferGeometry(
   const targetFaceWidth = 0.34;
   const scaleFactor = targetFaceWidth / rawWidth;
 
-  const positions = new Float32Array(facePts.length * 3);
-  const uvs = new Float32Array(facePts.length * 2);
+  // 468 pontos faciais + 3 anéis anatômicos de 36 vértices + 2 polos (occipital e base do pescoço)
+  const totalVerts = 468 + 36 * 3 + 2;
+  const positions = new Float32Array(totalVerts * 3);
+  const uvs = new Float32Array(totalVerts * 2);
+  const uvsLeft = new Float32Array(totalVerts * 2);
+  const uvsRight = new Float32Array(totalVerts * 2);
 
+  // 1. Povoa os 468 vértices faciais a partir dos landmarks do MediaPipe
   for (let i = 0; i < facePts.length; i++) {
     const pt = facePts[i];
     const x = (pt.x - centerX) * scaleFactor;
     const y = -(pt.y - centerY) * scaleFactor;
-    // No MediaPipe, z negativo é mais próximo da câmera (nariz tem z bem negativo)
     const z = -pt.z * scaleFactor * depthMultiplier + 0.16;
 
     positions[i * 3] = x;
@@ -178,9 +193,110 @@ export function buildFaceBufferGeometry(
 
     uvs[i * 2] = pt.x;
     uvs[i * 2 + 1] = 1.0 - pt.y;
+
+    // Projeções angulares de 45°
+    const rad45 = Math.PI / 4;
+    const xLeft = x * Math.cos(rad45) - (z - 0.16) * Math.sin(rad45);
+    const xRight = x * Math.cos(-rad45) - (z - 0.16) * Math.sin(-rad45);
+    uvsLeft[i * 2] = Math.min(1.0, Math.max(0.0, 0.5 + xLeft / (targetFaceWidth * 1.15)));
+    uvsLeft[i * 2 + 1] = pt.y;
+    uvsRight[i * 2] = Math.min(1.0, Math.max(0.0, 0.5 + xRight / (targetFaceWidth * 1.15)));
+    uvsRight[i * 2 + 1] = pt.y;
   }
 
-  // Posição anatômica exata dos centros dos olhos derivada dos landmarks da pessoa
+  // 2. Constrói os anéis anatômicos de extensão para fechar o crânio e as laterais
+  // Anel 1: Transição têmporas, base da orelha e mandíbula (indices 468 a 503)
+  // Anel 2: Orelhas, processo mastóide e contorno cranial (indices 504 a 539)
+  // Anel 3: Pescoço cervical e calota parietal (indices 540 a 575)
+  for (let r = 1; r <= 3; r++) {
+    const ringStart = 468 + (r - 1) * 36;
+    for (let k = 0; k < 36; k++) {
+      const parentIdx = r === 1 ? FACE_OVAL_INDICES[k] : ringStart - 36 + k;
+      const px = positions[parentIdx * 3];
+      const py = positions[parentIdx * 3 + 1];
+      const pz = positions[parentIdx * 3 + 2];
+
+      const curIdx = ringStart + k;
+      let expandX = r === 1 ? 1.12 : r === 2 ? 1.02 : 0.88;
+      // Expande um pouco mais onde ficam as orelhas (região lateral média)
+      const isEarRegion = Math.abs(px) > targetFaceWidth * 0.35 && py > -0.05 && py < 0.12;
+      if (isEarRegion && r <= 2) {
+        expandX *= 1.14;
+      }
+
+      const newX = px * expandX;
+      const newY = py - (py < -0.02 ? 0.045 * r : 0.008 * r);
+      const newZ = pz - (r === 1 ? 0.07 : r === 2 ? 0.10 : 0.09);
+
+      positions[curIdx * 3] = newX;
+      positions[curIdx * 3 + 1] = newY;
+      positions[curIdx * 3 + 2] = newZ;
+
+      // UVs para os anéis anatômicos estendidos
+      uvs[curIdx * 2] = Math.min(1.0, Math.max(0.0, 0.5 + (newX / targetFaceWidth) * 0.5));
+      uvs[curIdx * 2 + 1] = Math.min(1.0, Math.max(0.0, 0.5 - (newY / targetFaceWidth) * 0.5));
+
+      const rad45 = Math.PI / 4;
+      const xLeft = newX * Math.cos(rad45) - (newZ - 0.16) * Math.sin(rad45);
+      const xRight = newX * Math.cos(-rad45) - (newZ - 0.16) * Math.sin(-rad45);
+      uvsLeft[curIdx * 2] = Math.min(1.0, Math.max(0.0, 0.5 + xLeft / (targetFaceWidth * 1.15)));
+      uvsLeft[curIdx * 2 + 1] = uvs[curIdx * 2 + 1];
+      uvsRight[curIdx * 2] = Math.min(1.0, Math.max(0.0, 0.5 + xRight / (targetFaceWidth * 1.15)));
+      uvsRight[curIdx * 2 + 1] = uvs[curIdx * 2 + 1];
+    }
+  }
+
+  // 3. Polos de fechamento: Occipital (trás da cabeça) e Base do Pescoço
+  const occIdx = 468 + 36 * 3;
+  const neckIdx = occIdx + 1;
+
+  positions[occIdx * 3] = 0;
+  positions[occIdx * 3 + 1] = 0.12;
+  positions[occIdx * 3 + 2] = -0.22;
+  uvs[occIdx * 2] = 0.5;
+  uvs[occIdx * 2 + 1] = 0.5;
+
+  positions[neckIdx * 3] = 0;
+  positions[neckIdx * 3 + 1] = -0.32;
+  positions[neckIdx * 3 + 2] = -0.06;
+  uvs[neckIdx * 2] = 0.5;
+  uvs[neckIdx * 2 + 1] = 0.1;
+
+  // 4. Índices de Triangulação (Delaunay da face interna + Ponte entre os Anéis)
+  const indices = triangulateLandmarks2D(facePts);
+
+  // Costura do contorno facial aos anéis estendidos
+  for (let r = 0; r < 3; r++) {
+    const rA =
+      r === 0
+        ? FACE_OVAL_INDICES
+        : Array.from({ length: 36 }, (_, i) => 468 + (r - 1) * 36 + i);
+    const rB = Array.from({ length: 36 }, (_, i) => 468 + r * 36 + i);
+
+    for (let k = 0; k < 36; k++) {
+      const a0 = rA[k];
+      const a1 = rA[(k + 1) % 36];
+      const b0 = rB[k];
+      const b1 = rB[(k + 1) % 36];
+
+      // Duas faces para formar o quadrilátero com normais para fora
+      indices.push(a0, b0, b1);
+      indices.push(a0, b1, a1);
+    }
+  }
+
+  // Tampas para fechar o occipital (topo/nuca) e a base do pescoço
+  for (let k = 0; k < 36; k++) {
+    const cur = 468 + 2 * 36 + k;
+    const nxt = 468 + 2 * 36 + ((k + 1) % 36);
+    if (positions[cur * 3 + 1] >= -0.06) {
+      indices.push(cur, occIdx, nxt);
+    } else {
+      indices.push(cur, nxt, neckIdx);
+    }
+  }
+
+  // Posição anatômica exata dos centros dos olhos
   const leftPt = landmarks[468] || landmarks[159] || { x: 0.41, y: 0.42, z: 0 };
   const rightPt = landmarks[473] || landmarks[386] || { x: 0.59, y: 0.42, z: 0 };
 
@@ -195,11 +311,11 @@ export function buildFaceBufferGeometry(
     -rightPt.z * scaleFactor * depthMultiplier + 0.16
   );
 
-  const indices = triangulateLandmarks2D(facePts);
-
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geometry.setAttribute('uvLeft', new THREE.BufferAttribute(uvsLeft, 2));
+  geometry.setAttribute('uvRight', new THREE.BufferAttribute(uvsRight, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
 

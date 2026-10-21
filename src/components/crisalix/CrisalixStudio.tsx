@@ -21,6 +21,8 @@ interface CrisalixStudioProps {
 
 export const CrisalixStudio: React.FC<CrisalixStudioProps> = ({ onProcessPhoto }) => {
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const leftInputRef = useRef<HTMLInputElement | null>(null);
+  const rightInputRef = useRef<HTMLInputElement | null>(null);
   const {
     autoRotate3D,
     toggleAutoRotate3D,
@@ -31,6 +33,10 @@ export const CrisalixStudio: React.FC<CrisalixStudioProps> = ({ onProcessPhoto }
     hairColors,
     setHairColors,
     capturedPhotoDataUrl,
+    leftSidePhotoUrl,
+    setLeftSidePhoto,
+    rightSidePhotoUrl,
+    setRightSidePhoto,
   } = useVisagismStore();
 
   const [comparisonMode, setComparisonMode] = useState<'antes' | 'depois'>('depois');
@@ -155,45 +161,96 @@ export const CrisalixStudio: React.FC<CrisalixStudioProps> = ({ onProcessPhoto }
 
       {/* Painel de Controles Clínicos & Visagismo (Direita) */}
       <div className="lg:col-span-4 bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 space-y-4">
-        {/* Foto de Origem Atual com Troca Rápida */}
-        <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2">
-          <div className="flex items-center gap-3">
-            <div
-              onClick={() => photoInputRef.current?.click()}
-              className="w-14 h-14 rounded-xl overflow-hidden border border-zinc-700 bg-zinc-900 cursor-pointer relative group shrink-0"
-              title="Clique para trocar a foto"
-            >
-              {capturedPhotoDataUrl ? (
-                <img
-                  src={capturedPhotoDataUrl}
-                  alt="Foto Atual"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-zinc-600">
-                  <Camera className="w-6 h-6" />
+        {/* Os 3 Slots Multi-View (Padrão Cirúrgico Crisalix) */}
+        <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-teal-400 flex items-center gap-1.5 uppercase tracking-wide">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              As 3 Fotos Multi-View (Padrão Crisalix)
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-teal-300">
+              {[capturedPhotoDataUrl, leftSidePhotoUrl, rightSidePhotoUrl].filter(Boolean).length}/3 prontas
+            </span>
+          </div>
+
+          <p className="text-[10px] text-zinc-400">
+            A foto frontal mapeia os olhos e nariz; as fotos em 45° projetam a mandíbula, orelhas e laterais reais.
+          </p>
+
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            {/* Slot 1: Frente */}
+            <div className="space-y-1">
+              <div
+                onClick={() => photoInputRef.current?.click()}
+                className="aspect-square rounded-xl overflow-hidden border border-zinc-700 bg-zinc-900 cursor-pointer relative group flex items-center justify-center"
+                title="Foto Frontal (Principal)"
+              >
+                {capturedPhotoDataUrl ? (
+                  <img src={capturedPhotoDataUrl} alt="Frente" className="w-full h-full object-cover" />
+                ) : (
+                  <Camera className="w-5 h-5 text-zinc-600" />
+                )}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[9px] text-white font-bold transition">
+                  Trocar
                 </div>
-              )}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[10px] text-white font-medium transition">
-                Trocar
               </div>
+              <span className="text-[10px] text-center font-bold text-zinc-300 block truncate">1. Frente (0°)</span>
             </div>
 
-            <div className="flex-1 min-w-0">
-              <span className="text-[10px] uppercase font-bold text-teal-400 block">
-                Foto Texturizada na Pele
-              </span>
-              <p className="text-xs font-semibold text-white truncate">Sua Foto no Modelo Anatômico</p>
-              <button
-                onClick={() => photoInputRef.current?.click()}
-                className="mt-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-500/40 flex items-center gap-1 transition"
+            {/* Slot 2: 45° Esquerda */}
+            <div className="space-y-1">
+              <div
+                onClick={() => leftInputRef.current?.click()}
+                className={`aspect-square rounded-xl overflow-hidden border cursor-pointer relative group flex items-center justify-center transition ${
+                  leftSidePhotoUrl
+                    ? 'border-teal-500/80 bg-zinc-900'
+                    : 'border-dashed border-zinc-700 bg-zinc-950 hover:border-teal-500/50'
+                }`}
+                title="Foto 45° Esquerda (Lateral e Orelha)"
               >
-                <Upload className="w-3 h-3" />
-                Carregar Outra Foto
-              </button>
+                {leftSidePhotoUrl ? (
+                  <img src={leftSidePhotoUrl} alt="45° Esq" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="text-center p-1">
+                    <Upload className="w-4 h-4 text-teal-400 mx-auto mb-0.5" />
+                    <span className="text-[8px] text-zinc-400 block">+ Foto</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[9px] text-white font-bold transition">
+                  {leftSidePhotoUrl ? 'Trocar' : 'Subir'}
+                </div>
+              </div>
+              <span className="text-[10px] text-center font-bold text-zinc-300 block truncate">2. 45° Esq</span>
+            </div>
+
+            {/* Slot 3: 45° Direita */}
+            <div className="space-y-1">
+              <div
+                onClick={() => rightInputRef.current?.click()}
+                className={`aspect-square rounded-xl overflow-hidden border cursor-pointer relative group flex items-center justify-center transition ${
+                  rightSidePhotoUrl
+                    ? 'border-teal-500/80 bg-zinc-900'
+                    : 'border-dashed border-zinc-700 bg-zinc-950 hover:border-teal-500/50'
+                }`}
+                title="Foto 45° Direita (Lateral e Orelha)"
+              >
+                {rightSidePhotoUrl ? (
+                  <img src={rightSidePhotoUrl} alt="45° Dir" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="text-center p-1">
+                    <Upload className="w-4 h-4 text-teal-400 mx-auto mb-0.5" />
+                    <span className="text-[8px] text-zinc-400 block">+ Foto</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[9px] text-white font-bold transition">
+                  {rightSidePhotoUrl ? 'Trocar' : 'Subir'}
+                </div>
+              </div>
+              <span className="text-[10px] text-center font-bold text-zinc-300 block truncate">3. 45° Dir</span>
             </div>
           </div>
 
+          {/* Inputs invisíveis para carregar as fotos */}
           <input
             ref={photoInputRef}
             type="file"
@@ -210,6 +267,38 @@ export const CrisalixStudio: React.FC<CrisalixStudioProps> = ({ onProcessPhoto }
                 } else {
                   useVisagismStore.getState().setCapturedPhoto(url);
                 }
+              };
+              reader.readAsDataURL(file);
+            }}
+          />
+
+          <input
+            ref={leftInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => {
+                setLeftSidePhoto(reader.result as string);
+              };
+              reader.readAsDataURL(file);
+            }}
+          />
+
+          <input
+            ref={rightInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => {
+                setRightSidePhoto(reader.result as string);
               };
               reader.readAsDataURL(file);
             }}
