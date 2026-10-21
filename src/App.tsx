@@ -28,7 +28,7 @@ import { VisagismBust3D } from './components/studio3d/VisagismBust3D';
 import { SpatialHUD3D } from './components/studio3d/SpatialHUD3D';
 import { analyzeFaceLandmarks, NormalizedLandmark } from './services/faceAnalysis';
 import { sampleSkinColorHexFromCanvas } from './services/defaultPortrait';
-import { convertPhotoTo3DAsset } from './services/falPipeline';
+import { convertPhotoTo3DAsset, extractFalErrorMessage } from './services/falPipeline';
 import { CrisalixStudio } from './components/crisalix/CrisalixStudio';
 
 export const App: React.FC = () => {
@@ -371,9 +371,10 @@ export const App: React.FC = () => {
         setAi3dStatusMessage('Gaussian Splatting carregado!');
       }
     } catch (err: any) {
-      console.error('Erro na geração 3D:', err);
-      setAi3dStatusMessage(`Erro: ${err?.message || 'Falha na API'}`);
-      alert(err?.message || 'Erro ao gerar 3D na Fal.ai. Verifique seus créditos.');
+      console.error('Erro na geração 3D Fal.ai:', err);
+      const msg = extractFalErrorMessage(err);
+      setAi3dStatusMessage(`Erro: ${msg}`);
+      alert(`Falha na Fal.ai: ${msg}`);
     } finally {
       setIsGenerating3D(false);
     }

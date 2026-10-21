@@ -1,16 +1,40 @@
 import { fal } from '@fal-ai/client';
 import { GeneratedAsset3D } from '../types/visagism.types';
 
-function dataUrlToBlob(dataUrl: string): Blob {
-  const parts = dataUrl.split(',');
-  const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-  const bstr = atob(parts[1]);
-  let n = bstr.length;
-  const u8arr = new Uint8Array(n);
-  while (n--) {
-    u8arr[n] = bstr.charCodeAt(n);
+async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
+  try {
+    const res = await fetch(dataUrl);
+    return await res.blob();
+  } catch {
+    // Fallback manual para caso o fetch do dataURL falhe
+    const parts = dataUrl.split(',');
+    const mime = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+    const bstr = atob(parts[1].replace(/\s/g, ''));
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
   }
-  return new Blob([u8arr], { type: mime });
+}
+
+export function extractFalErrorMessage(err: any): string {
+  if (!err) return 'Erro desconhecido na chamada da API.';
+  if (err.fieldErrors && Array.isArray(err.fieldErrors) && err.fieldErrors.length > 0) {
+    return err.fieldErrors.map((f: any) => `${f.loc?.join('.') || 'campo'}: ${f.msg}`).join('; ');
+  }
+  if (err.body?.detail) {
+    if (typeof err.body.detail === 'string') return err.body.detail;
+    if (Array.isArray(err.body.detail)) {
+      return err.body.detail.map((d: any) => d.msg || JSON.stringify(d)).join('; ');
+    }
+    return JSON.stringify(err.body.detail);
+  }
+  if (err.body?.message) return err.body.message;
+  if (err.message && err.message !== 'Failed to fetch') return err.message;
+  if (err.status) return `Falha na requisição com código HTTP ${err.status}`;
+  return typeof err === 'object' ? JSON.stringify(err) : String(err);
 }
 
 export async function convertPhotoTo3DAsset(params: {
@@ -36,8 +60,11 @@ export async function convertPhotoTo3DAsset(params: {
     );
   }
 
+  const cleanKey = apiKey.trim().replace(/^Key\s+/i, '').replace(/^Bearer\s+/i, '');
+
   fal.config({
-    credentials: apiKey.trim(),
+    credentials: cleanKey,
+    suppressLocalCredentialsWarning: true,
   });
 
   onStatusUpdate?.(
@@ -47,8 +74,8 @@ export async function convertPhotoTo3DAsset(params: {
   // Faz upload de todas as fotos (Frente + 45° Esq + 45° Dir) em paralelo para o CDN da Fal
   const publicImageUrls = await Promise.all(
     photoDataUrls.map(async (dataUrl, idx) => {
-      if (dataUrl.startsWith('data:')) {
-        const blob = dataUrlToBlob(dataUrl);
+      if (dataUrl.startsWith('data:') || dataUrl.startsWith('blob:')) {
+        const blob = await dataUrlToBlob(dataUrl);
         const uploaded = await fal.storage.upload(blob);
         onStatusUpdate?.(`Foto ${idx + 1}/${photoDataUrls.length} enviada para o CDN...`);
         return uploaded;
@@ -65,6 +92,7 @@ export async function convertPhotoTo3DAsset(params: {
     const result: any = await fal.subscribe('fal-ai/hyper3d/rodin', {
       input: {
         input_image_urls: publicImageUrls,
+        ...(publicImageUrls.length > 0 ? { image_url: publicImageUrls[0] } : {}),
         geometry_file_format: 'glb',
         material: 'PBR',
         quality: 'medium',

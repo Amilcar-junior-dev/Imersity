@@ -17,7 +17,7 @@ import {
 import { xrStore } from '../../store/xrStore';
 import { useVisagismStore, HAIR_PRESETS } from '../../store/useVisagismStore';
 import { CrisalixHead3D } from './CrisalixHead3D';
-import { convertPhotoTo3DAsset } from '../../services/falPipeline';
+import { convertPhotoTo3DAsset, extractFalErrorMessage } from '../../services/falPipeline';
 
 interface CrisalixStudioProps {
   onProcessPhoto?: (dataUrl: string) => void;
@@ -97,7 +97,8 @@ export const CrisalixStudio: React.FC<CrisalixStudioProps> = ({ onProcessPhoto }
       }
     } catch (err: any) {
       console.error('Erro na geração Rodin:', err);
-      setErrorMsg(err?.message || 'Falha na geração do modelo 3D pela Fal.ai.');
+      const msg = extractFalErrorMessage(err);
+      setErrorMsg(`Falha na Fal.ai: ${msg}`);
     } finally {
       setIsGenerating3D(false);
       setGenerationStatus('');
