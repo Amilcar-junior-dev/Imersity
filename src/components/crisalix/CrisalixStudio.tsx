@@ -161,7 +161,7 @@ export const CrisalixStudio: React.FC<CrisalixStudioProps> = ({ onProcessPhoto }
 
       {/* Painel de Controles Clínicos & Visagismo (Direita) */}
       <div className="lg:col-span-4 bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 space-y-4">
-        {/* Os 3 Slots Multi-View (Padrão Cirúrgico Crisalix) */}
+        {/* Os 3 Slots Multi-View (Padrão Crisalix) */}
         <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2.5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold text-teal-400 flex items-center gap-1.5 uppercase tracking-wide">
@@ -174,7 +174,7 @@ export const CrisalixStudio: React.FC<CrisalixStudioProps> = ({ onProcessPhoto }
           </div>
 
           <p className="text-[10px] text-zinc-400">
-            A foto frontal mapeia os olhos e nariz; as fotos em 45° projetam a mandíbula, orelhas e laterais reais.
+            Hoje o 3D usa só a foto frontal. As fotos de 45° ficam guardadas para a etapa de cabeça completa (em construção).
           </p>
 
           <div className="grid grid-cols-3 gap-2 pt-1">
@@ -206,7 +206,7 @@ export const CrisalixStudio: React.FC<CrisalixStudioProps> = ({ onProcessPhoto }
                     ? 'border-teal-500/80 bg-zinc-900'
                     : 'border-dashed border-zinc-700 bg-zinc-950 hover:border-teal-500/50'
                 }`}
-                title="Foto 45° Esquerda (Lateral e Orelha)"
+                title="Foto 45° Esquerda (Orelha e Lateral Esquerda)"
               >
                 {leftSidePhotoUrl ? (
                   <img src={leftSidePhotoUrl} alt="45° Esq" className="w-full h-full object-cover" />
@@ -232,7 +232,7 @@ export const CrisalixStudio: React.FC<CrisalixStudioProps> = ({ onProcessPhoto }
                     ? 'border-teal-500/80 bg-zinc-900'
                     : 'border-dashed border-zinc-700 bg-zinc-950 hover:border-teal-500/50'
                 }`}
-                title="Foto 45° Direita (Lateral e Orelha)"
+                title="Foto 45° Direita (Orelha e Lateral Direita)"
               >
                 {rightSidePhotoUrl ? (
                   <img src={rightSidePhotoUrl} alt="45° Dir" className="w-full h-full object-cover" />
