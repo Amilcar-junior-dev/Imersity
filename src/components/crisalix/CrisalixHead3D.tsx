@@ -4,6 +4,8 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { useVisagismStore } from '../../store/useVisagismStore';
 import { buildFaceBufferGeometry } from '../../services/faceMeshBuilder';
+import { SculptedEar3D } from './SculptedEar3D';
+import { VitreousEyes3D } from './VitreousEyes3D';
 
 const CustomGLBModel: React.FC<{ url: string; scale?: number }> = ({ url, scale = 1.0 }) => {
   const { scene } = useGLTF(url);
@@ -274,7 +276,7 @@ export const CrisalixHead3D: React.FC<{
   }, [capturedPhotoDataUrl]);
 
   // Geometria facial contínua de 468 pontos sem buracos
-  const { geometry: faceGeometry } = useMemo(() => {
+  const { geometry: faceGeometry, leftEyePos, rightEyePos } = useMemo(() => {
     return buildFaceBufferGeometry(faceLandmarks, 1.35 * morphNoseDepth);
   }, [faceLandmarks, morphNoseDepth]);
 
@@ -298,7 +300,7 @@ export const CrisalixHead3D: React.FC<{
 
   return (
     <group ref={groupRef} position={[0, 1.35, -0.65]}>
-      {/* 1. MÁSCARA FACIAL FOTORREALISTA */}
+      {/* 1. MÁSCARA FACIAL FOTORREALISTA DA CLIENTE (MediaPipe Landmarks Reais) */}
       <mesh
         geometry={faceGeometry}
         position={[0, 0.11, 0.025]}
@@ -318,24 +320,42 @@ export const CrisalixHead3D: React.FC<{
         )}
       </mesh>
 
-      {/* 2. BASE DO CRÂNIO / PESCOÇO / BUSTO */}
+      {/* 2. OLHOS 3D FÍSICOS DESACOPLADOS (Córnea Vítrea Refrativa IOR 1.376) */}
+      <group position={[0, 0.11, 0.025]} scale={[morphJawWidth, morphCheekboneLift, 1.0]}>
+        <VitreousEyes3D
+          leftEyePos={leftEyePos}
+          rightEyePos={rightEyePos}
+          irisColorHex="#2b1b12"
+        />
+      </group>
+
+      {/* 3. BASE DO CRÂNIO, ORELHAS ANATÔMICAS, PESCOÇO E BUSTO */}
       <group name="AnatomicalBase">
-        {/* Crânio base */}
-        <mesh position={[0, 0.13, -0.04]} scale={[0.82 * morphJawWidth, 1.04, 0.92]}>
+        {/* Crânio base limpo (Pele Contínua) */}
+        <mesh position={[0, 0.13, -0.045]} scale={[0.83 * morphJawWidth, 1.04, 0.93]}>
           <sphereGeometry args={[0.235, 48, 48]} />
-          <meshStandardMaterial color={skinColorHex} roughness={0.52} />
+          <meshStandardMaterial color={skinColorHex} roughness={0.48} />
         </mesh>
 
-        {/* Cabelo preso / Touca apenas no modo Antes */}
+        {/* Orelhas Anatômicas Esculpidas (Esquerda e Direita) */}
+        <SculptedEar3D
+          side="left"
+          skinColorHex={skinColorHex}
+          position={[-0.174 * morphJawWidth, 0.08, -0.035]}
+          scale={1.0}
+        />
+        <SculptedEar3D
+          side="right"
+          skinColorHex={skinColorHex}
+          position={[0.174 * morphJawWidth, 0.08, -0.035]}
+          scale={1.0}
+        />
+
+        {/* Touca cirúrgica clínica suave apenas no modo Antes (recuada atrás da testa) */}
         {!showHairLayer && (
-          <mesh position={[0, 0.165, -0.05]} scale={[0.84 * morphJawWidth, 1.05, 0.95]}>
-            <sphereGeometry args={[0.238, 36, 36, 0, Math.PI * 2, 0, Math.PI * 0.7]} />
-            <meshPhysicalMaterial
-              color={hairColors.rootHex}
-              roughness={0.36}
-              clearcoat={0.65}
-              clearcoatRoughness={0.2}
-            />
+          <mesh position={[0, 0.165, -0.065]} scale={[0.82 * morphJawWidth, 1.03, 0.92]}>
+            <sphereGeometry args={[0.236, 36, 36, 0, Math.PI * 2, 0, Math.PI * 0.6]} />
+            <meshStandardMaterial color="#27272a" roughness={0.7} />
           </mesh>
         )}
 
@@ -344,17 +364,16 @@ export const CrisalixHead3D: React.FC<{
           <mesh position={[0, 0.135, -0.275]}>
             <sphereGeometry args={[0.078, 24, 24]} />
             <meshPhysicalMaterial
-              color={hairColors.rootHex}
-              roughness={0.34}
-              clearcoat={0.7}
+              color="#27272a"
+              roughness={0.6}
             />
           </mesh>
         )}
 
-        {/* Pescoço */}
+        {/* Pescoço anatômico */}
         <mesh position={[0, -0.21, -0.04]}>
           <cylinderGeometry args={[0.088, 0.108, 0.25, 32]} />
-          <meshStandardMaterial color={skinColorHex} roughness={0.55} />
+          <meshStandardMaterial color={skinColorHex} roughness={0.52} />
         </mesh>
 
         {/* Pedestal do Busto */}
