@@ -1,4 +1,11 @@
-# Imersity Lab — POC v0.6.7
+# Imersity Lab — POC v0.6.8
+
+## Um vídeo por experimento
+
+A v0.6.8 corrige a mistura de capturas ao importar um segundo vídeo. Se já houver
+imagens, salve o pacote e use **Novo experimento** na página de capturas antes de
+importar outro vídeo. O sistema também bloqueia pacotes antigos com vídeos
+distintos. Detalhes em [Isolamento das capturas](docs/ISOLAMENTO_CAPTURAS.md).
 
 ## Código versionado e primeira execução
 

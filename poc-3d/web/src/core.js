@@ -18,6 +18,15 @@ export function safeCaptureName(index,name) {
   const extension=name.toLowerCase().match(/\.(jpe?g|png|webp)$/)?.[1] ?? 'jpg';
   return `images/frame_${String(index).padStart(5,'0')}.${extension}`;
 }
+export function assertCanImportVideo(captures) {
+  if(captures.length) throw new Error('Já existem imagens neste experimento. Salve o pacote de captura e use Novo experimento antes de importar outro vídeo.');
+}
+export function assertSingleCaptureSource(captures) {
+  const videos=new Set(captures.map(c=>c.sourceVideo).filter(Boolean));
+  if(videos.size>1 || (videos.size && captures.some(c=>!c.sourceVideo))) {
+    throw new Error('Há imagens de origens diferentes. Esta captura não pode ser reconstruída. Salve o pacote e inicie um Novo experimento com apenas um vídeo.');
+  }
+}
 export function summarizeFrames(times) {
   const sorted=times.filter(v=>Number.isFinite(v)&&v>0).toSorted((a,b)=>a-b);
   if(!sorted.length) return {fps:0,p50:0,p95:0,samples:0};

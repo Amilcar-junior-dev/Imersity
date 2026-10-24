@@ -11,8 +11,11 @@ from unittest.mock import patch
 class PipelineTests(unittest.TestCase):
     def image(self):
         out=io.BytesIO(); Image.new('RGB',(128,128),(180,150,130)).save(out,format='JPEG'); return out.getvalue()
-    def bundle(self,path,extra=None,roles=('train','evaluation')):
+    def bundle(self,path,extra=None,roles=('train','evaluation'),sources=None):
         manifest={'schema':'imersity.capture.v1','images':[{'path':f'images/{i}.jpg','role':role} for i,role in enumerate(roles)]}
+        if sources:
+            for item, source in zip(manifest['images'], sources):
+                if source: item['sourceVideo'] = source
         with zipfile.ZipFile(path,'w') as z:
             z.writestr('capture.json',json.dumps(manifest))
             for i in range(len(roles)):z.writestr(f'images/{i}.jpg',self.image())
@@ -31,6 +34,21 @@ class PipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             base=Path(d);self.bundle(base/'capture.zip')
             with self.assertRaisesRegex(ValueError,'20'):unpack_capture(base/'capture.zip',base/'capture')
+    def test_mixed_video_sources_are_rejected_before_images_are_written(self):
+        with tempfile.TemporaryDirectory() as d:
+            base=Path(d);self.bundle(base/'capture.zip',sources=('first.mov','second.mov'))
+            original=(base/'capture.zip').read_bytes()
+            with self.assertRaisesRegex(ValueError,'mistura origens'):
+                unpack_capture(base/'capture.zip',base/'capture',minimum_training=1)
+            self.assertFalse((base/'capture'/'train').exists())
+            self.assertEqual((base/'capture.zip').read_bytes(),original)
+    def test_single_video_with_evaluation_is_valid_but_unlabelled_additions_are_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            base=Path(d);self.bundle(base/'valid.zip',sources=('one.mov','one.mov'))
+            self.assertEqual(unpack_capture(base/'valid.zip',base/'valid',minimum_training=1),{'train':1,'evaluation':1})
+            self.bundle(base/'mixed.zip',sources=('one.mov',None))
+            with self.assertRaisesRegex(ValueError,'mistura origens'):
+                unpack_capture(base/'mixed.zip',base/'mixed',minimum_training=1)
     def test_missing_gpu_reports_failure_and_never_fakes_result(self):
         with tempfile.TemporaryDirectory() as d:
             base=Path(d);write_status(base,id='test',status='queued')

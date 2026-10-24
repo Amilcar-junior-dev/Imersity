@@ -13,7 +13,7 @@ import time
 from fastapi import FastAPI, HTTPException, UploadFile, File, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from .pipeline import requirements as gpu_requirements, run_job as gpu_run_job, unpack_capture, write_status
+from .pipeline import requirements as gpu_requirements, run_job as gpu_run_job, unpack_capture, write_status, validate_capture_source
 from . import macos
 from fastapi.staticfiles import StaticFiles
 
@@ -109,7 +109,12 @@ def saved_captures():
         manifest = json.loads(manifest_path.read_text())
         images = manifest.get('images', [])
         first = next((i for i in images if i.get('role') != 'evaluation'), {})
-        captures.append({k: saved.get(k) for k in ('id', 'status', 'detail', 'createdAt', 'counts')} | {'width': first.get('width'), 'height': first.get('height'), 'sourceName': first.get('sourceVideo') or manifest.get('name') or 'Captura salva'})
+        try:
+            validate_capture_source(images)
+            mixed = False
+        except ValueError:
+            mixed = True
+        captures.append({k: saved.get(k) for k in ('id', 'status', 'detail', 'createdAt', 'counts')} | {'width': first.get('width'), 'height': first.get('height'), 'sourceName': first.get('sourceVideo') or manifest.get('name') or 'Captura salva', 'mixedSources': mixed})
     return sorted(captures, key=lambda c: c.get('createdAt') or 0, reverse=True)
 
 @app.post('/jobs/{job_id}/repeat', status_code=202)
@@ -118,6 +123,11 @@ def repeat_job(job_id: str, detail: str = 'custom', base_cut: float = .30):
     saved = json.loads((source / 'job.json').read_text())
     if saved.get('status') in ('queued', 'processing'):
         raise HTTPException(409, 'A captura de origem ainda está em processamento.')
+    try:
+        manifest = json.loads((source / 'capture' / 'capture.json').read_text())
+        validate_capture_source(manifest.get('images', []))
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
     preflight(detail, base_cut)
     if not (source / 'capture' / 'train').is_dir():
         raise HTTPException(404, 'Quadros da captura não estão mais disponíveis.')

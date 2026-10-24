@@ -15,6 +15,13 @@ MAX_IMAGE_BYTES = 20 * 1024 * 1024
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
 
 
+def validate_capture_source(images):
+    """Reject mixed video captures; this is provenance checking, not face recognition."""
+    sources = {item.get('sourceVideo') for item in images if item.get('sourceVideo')}
+    if len(sources) > 1 or (sources and any(not item.get('sourceVideo') for item in images)):
+        raise ValueError('A captura mistura origens diferentes. Inicie um novo experimento com apenas um vídeo.')
+
+
 def requirements() -> dict:
     missing = [cmd for cmd in ('colmap', 'ffmpeg', 'ns-process-data', 'ns-train', 'ns-export') if not shutil.which(cmd)]
     device = ''
@@ -53,6 +60,7 @@ def unpack_capture(archive: Path, destination: Path, minimum_training: int = 20)
         listed = [item.get('path') for item in images if isinstance(item, dict)]
         if len(listed) != len(images) or len(set(listed)) != len(images):
             raise ValueError('Lista de imagens inválida ou duplicada.')
+        validate_capture_source(images)
         counts = {'train': 0, 'evaluation': 0}
         for item in images:
             role, name = item.get('role'), item.get('path')

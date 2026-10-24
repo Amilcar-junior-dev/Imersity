@@ -62,4 +62,19 @@ class APITests(unittest.TestCase):
         for query in ('detail=head-custom&base_cut=0.8','detail=head-custom&base_cut=nan','detail=full&base_cut=0.2','detail=unknown'):
             response=self.client.post('/jobs?'+query,headers=headers,files={'capture':('capture.zip',b'invalid','application/zip')})
             self.assertEqual(response.status_code,400)
+    def test_mixed_saved_capture_is_flagged_and_cannot_be_repeated(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);source=root/('b'*32);capture=source/'capture';capture.mkdir(parents=True)
+            (capture/'capture.json').write_text(json.dumps({'images':[
+                {'role':'train','sourceVideo':'first.mov'},
+                {'role':'train','sourceVideo':'second.mov'},
+            ]}))
+            (source/'job.json').write_text(json.dumps({'status':'completed','counts':{'train':160}}))
+            headers={'Authorization':'Bearer test-only-token-not-for-deployment'}
+            with patch.object(service,'ROOT',root),patch.object(service.pool,'submit') as submit:
+                self.assertTrue(self.client.get('/jobs',headers=headers).json()[0]['mixedSources'])
+                response=self.client.post(f'/jobs/{source.name}/repeat',headers=headers)
+                self.assertEqual(response.status_code,400)
+                submit.assert_not_called()
+                self.assertEqual(len(list(root.iterdir())),1)
 if __name__=='__main__':unittest.main()
