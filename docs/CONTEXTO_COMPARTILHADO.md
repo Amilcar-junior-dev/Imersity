@@ -23,7 +23,7 @@ sem reduzir a tese à economia de tempo ou tratar concorrência como impedimento
 | Frente | Chat | Fonte principal | Próxima entrega conhecida |
 |---|---|---|---|
 | Discovery e negócio | Discovery | `discovery/2026-10-23-discovery-b2b-sem-3d.md` | Validar hipóteses com profissionais e evidências de uso/compra |
-| Reconstrução, cabelo e XR | Executor | Este contexto, contrato e documentos da POC externa | Testar nova pessoa quando o usuário fornecer captura; padronizar preparação |
+| Reconstrução, cabelo e XR | Executor | Este contexto, contrato e `poc-3d/docs/` | Testar nova pessoa quando o usuário fornecer captura; padronizar preparação |
 | Produto e aplicação | Ainda não criado pelo usuário | Discovery, decisões e contrato | Definir implementação a partir das necessidades validadas |
 
 Referências locais de chats, não credenciais:
@@ -96,16 +96,16 @@ classificar capacidades existentes e verificar os fluxos com especialistas.
 
 | Local | Conteúdo e estado |
 |---|---|
-| Este repositório `Imersity3D` | Protótipo existente React 18/TypeScript/Vite 6/Three.js 0.170.x/R3F, com serviços fal.ai e tipos de visagismo. Não é a POC Object Capture validada nem aplicação de produção aprovada. Existem alterações prévias não commitadas |
-| `/Users/junioroliveira/Documents/Junior/ProjetosSoftware/ImersivyFeshion3D` | Código da POC 3D validada neste chat: `backend/`, `native/`, `scripts/`, `web/`; v0.6.7. Não foi migrado para este repositório |
+| Raiz deste repositório `Imersity3D` | Protótipo React 18/TypeScript/Vite 6/Three.js 0.170.x/R3F, com serviços fal.ai e tipos de visagismo; documentos compartilhados e discovery. Histórico enviado ao repositório GitHub Imersity em 23/10/2026 |
+| `poc-3d/` neste repositório | Código da POC 3D v0.6.7: `backend/`, `native/`, `scripts/`, `web/`, testes, docs, Sintel e atribuições. Referência de desenvolvimento/versionamento desde a consolidação de 23/10/2026. Não integrada ao protótipo React |
+| `/Users/junioroliveira/Documents/Junior/ProjetosSoftware/ImersivyFeshion3D` | Diretório de origem preservado com código anterior, ambientes, capturas e serviço local existente. Novas mudanças de código devem ocorrer em `poc-3d/`; o serviço já aberto não foi reiniciado pela importação |
 | `/Users/junioroliveira/Documents/Codex/2026-10-21/q/outputs` | Artefatos locais privados e relatórios. Não publicar nem copiar para `public/` |
 | `http://localhost:4180/` | Endereço local usado pela POC. Não é endereço de produção nem integração de API estável |
 
 Artefato atual: `Imersity_cabelo_referencia_Sintel_v2.glb`.
 SHA-256: `ea9cee4fc01869f6a3f1e3a5a4a37e5ca5ba883d99bb8a2a33b61ca5ff6ea692`.
 Relatório: mesmo nome com `_verificacao.json`, no diretório de outputs.
-Documentação técnica na POC externa:
-`/Users/junioroliveira/Documents/Junior/ProjetosSoftware/ImersivyFeshion3D/docs/AJUSTE_RAIZ_SINTEL_V2.md`.
+Documentação técnica versionada: `poc-3d/docs/AJUSTE_RAIZ_SINTEL_V2.md`.
 
 ## O que precisa conversar entre as frentes
 

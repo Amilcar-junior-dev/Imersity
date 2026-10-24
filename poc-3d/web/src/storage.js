@@ -1,0 +1,4 @@
+const dbPromise=new Promise((resolve,reject)=>{const r=indexedDB.open('imersity-lab',1);r.onupgradeneeded=()=>r.result.createObjectStore('state');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});
+export async function readState(){const db=await dbPromise;return new Promise((resolve,reject)=>{const t=db.transaction('state');const r=t.objectStore('state').get('session');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+export async function writeState(value){const db=await dbPromise;return new Promise((resolve,reject)=>{const t=db.transaction('state','readwrite');t.objectStore('state').put(value,'session');t.oncomplete=resolve;t.onerror=()=>reject(t.error);});}
+export async function clearState(){const db=await dbPromise;return new Promise((resolve,reject)=>{const t=db.transaction('state','readwrite');t.objectStore('state').clear();t.oncomplete=resolve;t.onerror=()=>reject(t.error);});}

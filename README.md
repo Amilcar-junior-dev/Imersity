@@ -6,15 +6,17 @@ Projeto em validação para apoiar consultorias de visagismo e investigar avatar
 ## Conteúdo deste repositório
 
 - `src/`: protótipo web existente em React, TypeScript, Three.js e React Three Fiber.
+- `poc-3d/`: POC v0.6.7 de reconstrução com Apple Object Capture, backend Python,
+  ponte Swift, preparação de cabeça/cabelo e visualizador Three.js próprio.
 - `discovery/`: pesquisa de mercado, evidências e propostas de validação.
 - `docs/`: contexto compartilhado, decisões e proposta de contrato entre aplicação
   e processamento 3D.
 - `AGENTS.md`: acordo de trabalho entre as frentes do projeto.
 
-Este protótipo não representa uma arquitetura de produção aprovada. A POC de
-reconstrução com Apple Object Capture, Python/Swift e visualizador próprio está
-em outro diretório local (`ImersivyFeshion3D`) e ainda não integra este repositório.
-Os resultados dessa POC e suas limitações estão descritos no contexto compartilhado.
+Estes experimentos não representam uma arquitetura de produção aprovada. A POC
+validada neste chat está versionada em `poc-3d/`; suas instruções estão no
+[README da POC](poc-3d/README.md). O protótipo React e a POC mantêm suas dependências
+e processos separados. Compartilhar o repositório não implementa sua integração.
 
 ## Executar o protótipo
 

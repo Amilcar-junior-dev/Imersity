@@ -1,0 +1,3 @@
+# Optional offline preparation/geometry verification only. Not required by the web viewer.
+numpy>=2.0
+Pillow>=12.0

@@ -15,6 +15,7 @@ de aprovação. Não transformar revisão entre frentes em bloqueio para tarefas
 | D-003 | Acordo de trabalho registrado por Executor | Arquivos deste repositório serão a referência compartilhada; cada frente atualiza sua evidência e impactos | Concretiza D-001. Compartilhar pasta não equivale a memória automática entre chats |
 | P-001 | Proposta técnica inicial, não implementada | Separar processamento 3D do produto por adaptador e pacote de avatar versionado | `CONTRATO_3D.md`; linguagens podem diferir sem duplicar clientes/dossiês |
 | P-002 | Proposta a verificar na integração | Reusar navegador/WebGL e shader da POC através de módulo compatível com a aplicação | Há versões distintas de Three.js: 0.186.1 na POC e faixa 0.170.x no protótipo atual. Testar ou adaptar; não fazer upgrade/migração automática |
+| D-006 | Correção de versionamento solicitada pelo usuário, 23/10/2026 | Incluir o código da POC 3D no repositório GitHub Imersity, em `poc-3d/`, preservando backend, Swift, preparação, visualizador, testes, documentação e licenças | O primeiro push incluiu apenas o protótipo React e documentos. Esta consolidação corrige a omissão; não aprova integração ou migração de stack. Capturas e avatares pessoais ficam fora do Git; novas alterações da POC devem ocorrer na pasta versionada |
 
 ## Questões abertas com responsável
 
@@ -34,6 +35,14 @@ implementados; não muda o contrato ou a prioridade técnica da frente 3D.
 
 ## Registro de coordenação
 
+- 23/10/2026 — Executor corrigiu a omissão da POC no primeiro envio ao GitHub.
+  Importou a v0.6.7 para `poc-3d/`, verificando igualdade dos fontes com a origem,
+  e preservou as atribuições do Sintel e do shader. Na pasta consolidada passaram
+  24 testes JS, 15 de backend, 18 de preparação e o build web. Os testes de backend
+  usaram o venv local existente; os de preparação usaram o Python científico
+  disponível, pois o venv do backend não tinha NumPy. Capturas, avatares pessoais,
+  dependências instaladas e caches não são versionados. Serviço em execução e
+  diretório de origem preservados; próximas alterações da POC devem ocorrer aqui.
 - 23/10/2026 — Executor leu o estudo de discovery e inspecionou a stack deste
   repositório. Criou acordo, contexto e proposta de contrato sem alterar o código
   do protótipo nem mover a POC ou dados privados.

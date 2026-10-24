@@ -38,6 +38,15 @@ public/models/
 *.p12
 *.pfx
 
+# Python/Swift environments and local POC build caches
+.venv/
+__pycache__/
+*.pyc
+.cache/
+.tools/
+.openai/
+.sites-runtime/
+
 # System files & IDE
 .DS_Store
 .idea/
