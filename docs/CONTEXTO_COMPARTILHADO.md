@@ -71,6 +71,13 @@ e camada 3D/MR. Inclui recorte de piloto e critérios de aceite propostos. Não 
 backlog integral aprovado nem auditoria do protótipo; próximo confronto deve
 classificar capacidades existentes e verificar os fluxos com especialistas.
 
+Em 23/10/2026, o Discovery inspecionou visualmente os oito sites de referência,
+o relatório público da ImagiGO e a entrada do editor YouCam. Análise e capturas em
+`discovery/2026-10-23-analise-layout-referencias.md` e
+`discovery/evidencias-layout-2026-10-23/`. A recomendação separa página comercial,
+estúdio profissional e entrega ao cliente. Não houve login, envio de foto ou teste
+de geração; composição proposta ainda depende de teste de uso e responsividade.
+
 ## Estado da validação 3D — observado nesta POC
 
 - Captura de uma pessoa (Junior), com quadros extraídos de vídeo. Equipamentos
@@ -153,3 +160,141 @@ HTTP 400 também foi verificado no serviço reiniciado. Registro detalhado em
 Capturas/avatares privados permanecem em `poc-3d/data/`, fora do Git. A aplicação
 React e o contrato continuam sem alteração. Próximo passo: avaliar a captura isolada
 antes de preparar a cabeça e o cabelo para ela.
+
+## Atualização 3D/XR — limpeza inicial da segunda captura, 24/10/2026
+
+A inspeção posterior confirmou uma abertura extensa na única malha do USDZ.
+Foi gerada uma versão privada recortada (31.135 triângulos originais; 5.497 da
+região facial protegida mantidos) e uma comparação com apoio posterior estimado
+em laranja, separado da captura. Ainda há resíduos claros; o apoio não está
+soldado à borda e não recupera anatomia/cabelo ausente. Não declarar fechamento
+definitivo ou cabeça pronta para troca de cabelo. Detalhes e verificação em
+`poc-3d/docs/LIMPEZA_SEGUNDA_CAPTURA.md`; dados privados permanecem em `data/`.
+Não há mudança de contrato ou integração com a aplicação. Próximo passo:
+refinar bordas e transição, preservando rosto/orelhas, e avaliar a cobertura dos
+quadros ignorados. O usuário determinou que novos envios ao GitHub dependem de
+consentimento explícito para o envio em questão. Esta rodada ficou somente local.
+
+Correção posterior do usuário nesta mesma data: considerou o resultado de recorte
+e apoio pior e esclareceu que deseja **refazer a reconstrução a partir das fotos**
+com ajustes para a cobertura ausente. O apoio estimado não foi aprovado como
+solução. A rodada seguinte deve usar os quadros originais, não o GLB reparado.
+
+## Atualização 3D/XR — reconstrução das fotos com máscaras, 24/10/2026
+
+Executor refez o 3D das cópias verificadas dos 80 quadros originais, sem usar
+remendos ou modelos recortados como entrada. Primeiro, máscara automática +
+alinhamento não sequencial em Médio terminou em 261,3 s, mas manteve as mesmas
+24 amostras ignoradas e a falha posterior. Depois forneceu máscaras explícitas
+da pessoa por Apple Vision em cada `PhotogrammetrySample`, preservando o RGB.
+Essa execução terminou em 404,2 s; USDZ de 25,9 MiB/49.999 triângulos, textura 4K,
+com 10 amostras ignoradas. Frente, perfis e nuca em Cor sem luz e nuca em Escultura
+foram inspecionados: a grande abertura/faixa clara posterior deixou de aparecer.
+
+Restam irregularidades no topo, pontas do cabelo, pescoço e busto. Não se trata de
+fidelidade métrica validada, recorte de cabelo ou transferência de penteado para
+a segunda pessoa. Detalhes em `poc-3d/docs/RECONSTRUCAO_COBERTURA.md`. Novos perfis
+internos `recovery`/`person-recovery` não estão no seletor; serviço existente exibe
+os resultados, mas precisa reiniciar para novas submissões desses perfis por API.
+Passaram 21 testes de backend, dois do runner e a compilação Swift. Artefatos e
+80 máscaras ficam em `data/`, fora do Git. Nenhum push ou upload externo.
+Não houve mudança do contrato, núcleo React ou definição de fornecedor comercial.
+
+## Atualização 3D/XR — defeito no pescoço, 24/10/2026
+
+O usuário identificou uma curva artificial na junção cabelo/nuca/pescoço. Executor
+confirmou que também aparece em Escultura; revisão amostral das fotos mostra nuca
+encoberta e variações de enquadramento, sem isolar uma causa única. Testou nova
+reconstrução `person-head`, mesmas 80 fotos, máscaras idênticas byte a byte,
+textura 4K, teto de 500 mil polígonos e exclusão da parte inferior do volume.
+Produziu 249.999 triângulos em 362,9 s, com os mesmos dez IDs ignorados. A deformação
+persistiu em Cor sem luz e Escultura: **não está resolvida por aumentar detalhe**.
+
+Registro em `poc-3d/docs/EXPERIMENTO_PESCOCO.md`. Próximo teste proposto: captura
+da cabeça-base com nuca e orelhas expostas e posição estável, para investigar o
+efeito da oclusão/alinhamento. Não é protocolo geral aprovado nem garantia de
+resultado. O perfil é interno e não foi adicionado ao seletor. Passaram compilação
+Swift, 22 testes de backend e dois do runner. Originais/resultados anteriores
+preservados; dados privados fora do Git; nenhum push, upload ou mudança de contrato.
+
+## Limpeza autorizada da segunda captura — 24/10/2026
+
+O usuário vai refazer o vídeo e autorizou remover o material da captura com cabelo
+solto. Executor moveu para a Lixeira o vídeo original localizado em Downloads,
+seis trabalhos relacionados (incluindo o pacote misturado), o pacote de recuperação,
+temporários nativos e imagens de diagnóstico identificadas. São 34 arquivos/pastas
+de origem removidos dos locais ativos, com recuperação possível pela Lixeira.
+Os 80 quadros da primeira pessoa presentes no pacote misturado foram previamente
+conferidos por hash contra outra captura preservada. Sete trabalhos anteriores,
+o vídeo e o GLB anteriores de Junior permanecem nos locais originais.
+
+O cache do experimento na porta 4181 foi limpo pela interface. Verificação na
+porta antiga 4180 e na atual 4181 mostrou referência genérica e zero imagens;
+a API lista zero trabalhos salvos no diretório ativo desta POC. O laboratório foi
+reaberto localmente nas duas portas, com 4181 como endereço principal, para deixar
+o fluxo pronto para nova captura. Dados técnicos dos resultados anteriores continuam
+nos documentos, mas as mídias desses testes não estão mais disponíveis em `data/`.
+Não considerar links antigos de trabalhos como ativos nem tentar reutilizar seus
+quadros sem recuperação expressamente solicitada pelo usuário.
+
+Foram preservados código, parâmetros, testes e conclusões sem mídia pessoal para
+comparação técnica. Relatório de movimentação/recuperação permanece em `data/limpeza/`,
+ignorado pelo Git. Não houve commit, push ou envio de dados a terceiros.
+
+## Nova captura com cabelo preso — 24/10/2026
+
+O usuário refez o vídeo e concluiu a extração. Foi localizada uma captura salva
+com uma única origem, 80 quadros 2160 × 3840 e nenhuma imagem de avaliação.
+Amostras mostram coque, nuca e orelhas mais expostas. Já havia um resultado
+Médio sem máscaras, concluído em 614,7 s/49.999 triângulos/textura 4K; ainda
+incorporou fundo junto ao cabelo. Executor iniciou outra reconstrução local
+com cópias verificadas dos mesmos quadros e máscaras explícitas de pessoa,
+perfil `person-recovery`, preservando o primeiro modelo. A inspeção e conclusão
+ficam pendentes do processamento. Registro em `poc-3d/docs/NOVA_CAPTURA_PRESA.md`.
+
+O seletor web agora oferece **Pessoa · máscaras + Médio (experimental)** quando
+o backend anuncia suporte. Os 27 testes JS e o build passaram. Isso expõe o
+perfil já existente; não segmenta cabelo, não implementa o contrato proposto nem
+altera o núcleo React. Dados privados permanecem fora do Git. Sem commit/push.
+
+Conclusão desta comparação: máscaras + Médio terminaram em 1.626,3 s
+(27,1 min), 2,65 vezes o tempo do Médio sequencial desta captura, com 49.999
+triângulos e textura 4K. Originais/cópias conferidos, nenhum evento de amostra
+ignorada registrado. Frente, perfis e nuca foram inspecionados: grandes resíduos
+de fundo desapareceram, mas irregularidades no pescoço e atrás das orelhas
+continuam visíveis em Escultura. Não declarar o pescoço resolvido nem qualidade
+hiper-realista. O usuário confirmou que a pessoa girou diante da câmera; giro
+é uma abordagem possível, porém máscaras não corrigem mudanças de forma.
+Não foi isolada a causa da demora/deformação. Detalhes no registro citado.
+Próximo passo: revisar região útil da cabeça antes do preparo específico desta
+pessoa; troca de cabelo e XR ainda não testados nela. Sem push ou envio externo.
+
+## Revisão de geometria facial estruturada — 24/10/2026
+
+Após persistirem deformações, o usuário perguntou sobre padrões anatômicos de
+geradores 3D e personagens de jogos. Executor revisou FLAME, DECA, MetaHuman,
+SIRA++ e um exemplo aberto de geração imagem→3D. Esses caminhos já apareciam na
+pesquisa documental, mas não foram implementados/comparados com as capturas.
+O ramo multivista atual não registra um template facial nem impõe parâmetros
+anatômicos próprios; máscaras pessoa/fundo não equivalem a essa camada.
+
+Proposta de próximo experimento: ajustar uma cabeça humana estruturada às mesmas
+imagens e comparar forma/identidade com a fotogrametria, separando dados observados
+e inferidos. Evidência e limites em `poc-3d/docs/MODELO_FACIAL_ESTRUTURADO.md`.
+Sem novo código, reconstrução, upload, escolha de fornecedor ou mudança de contrato.
+
+## Checkpoint autorizado — 24/10/2026
+
+O usuário solicitou explicitamente commit e push do estado atual para garantir
+o versionamento. Essa autorização vale para este envio; D-007 permanece para
+os seguintes. Escopo: código e testes da POC, registros técnicos/compartilhados
+e material público de pesquisa de layout produzido anteriormente pelo Discovery.
+Capturas pessoais, vídeos, avatares, máscaras, perfis privados, ambientes e builds
+continuam fora do Git. FLAME ainda é proposta, aguardando o arquivo do modelo.
+
+Antes do checkpoint passaram 22 testes de backend, dois do runner, três de
+limpeza sintética, 18 de preparação da cabeça/cabelo e 27 JS, além do build web
+e compilação Swift. A suíte de preparação usa `PYTHONPATH=scripts` a partir de
+`poc-3d/`. Essas verificações não certificam fidelidade anatômica ou XR. A revisão
+de arquivos não encontrou credenciais pelos padrões conferidos; capturas de
+layout foram identificadas como páginas/material públicos, sem sessão autenticada.

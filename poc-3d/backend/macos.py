@@ -12,14 +12,15 @@ PROJECT = Path(__file__).resolve().parent.parent
 EXECUTABLE = PROJECT / '.tools' / 'imersity-object-capture'
 ACTIVE = set()
 ACTIVE_LOCK = threading.Lock()
-DETAIL_PROFILES = ('preview', 'reduced', 'medium', 'full', 'custom', 'head-custom')
+DETAIL_PROFILES = ('preview', 'reduced', 'medium', 'full', 'custom', 'head-custom', 'recovery', 'person-recovery', 'person-head')
+HEAD_PROFILES = ('head-custom', 'person-head')
 
 def validate_options(detail, base_cut):
     if detail not in DETAIL_PROFILES:
         raise ValueError('Nível de detalhe inválido.')
     if not 0 <= base_cut <= .70:
         raise ValueError('O recorte da base deve ficar entre 0% e 70%.')
-    if detail != 'head-custom' and base_cut != .30:
+    if detail not in HEAD_PROFILES and base_cut != .30:
         raise ValueError('Recorte disponível somente no teste concentrado na cabeça.')
 
 def stop_all():
@@ -27,7 +28,7 @@ def stop_all():
         for process in list(ACTIVE):
             if process.poll() is None: process.terminate()
 
-STAGES = {'preProcessing': 'Preparando imagens', 'imageAlignment': 'Alinhando câmeras', 'pointCloudGeneration': 'Gerando nuvem de pontos', 'meshGeneration': 'Construindo a malha', 'textureMapping': 'Aplicando texturas', 'optimization': 'Otimizando modelo', 'inputComplete': 'Imagens carregadas', 'headReconstruction': 'Reconstruindo o volume recortado'}
+STAGES = {'preProcessing': 'Preparando imagens', 'imageAlignment': 'Alinhando câmeras', 'pointCloudGeneration': 'Gerando nuvem de pontos', 'meshGeneration': 'Construindo a malha', 'textureMapping': 'Aplicando texturas', 'optimization': 'Otimizando modelo', 'inputComplete': 'Imagens carregadas', 'headReconstruction': 'Reconstruindo o volume recortado', 'personSegmentation': 'Separando pessoa e fundo nas fotos'}
 
 def requirements():
     result = {'ready': False, 'missing': [], 'pipeline': 'apple-object-capture', 'device': 'Apple Silicon / Metal', 'resultName': 'head.usdz', 'detailProfiles': DETAIL_PROFILES, 'savedCaptures': True}
@@ -60,13 +61,20 @@ def run_job(directory: Path, detail='reduced', base_cut=.30):
         destination = directory / 'result' / 'head.usdz'
         destination.parent.mkdir(parents=True, exist_ok=True)
         command = [str(EXECUTABLE), str(directory / 'capture' / 'train'), str(destination), detail]
-        if detail == 'head-custom': command.append(str(base_cut))
+        if detail in HEAD_PROFILES: command.append(str(base_cut))
         with (directory / 'pipeline.log').open('a', buffering=1) as log:
             log.write('Object Capture local. Imagens de avaliação excluídas. Escala sem validação métrica.\n')
-            log.write('Máscara automática desativada: o modelo pode incluir ombros e fundo.\n')
+            if detail in ('person-recovery', 'person-head'):
+                log.write('Máscaras explícitas da pessoa por Apple Vision e alinhamento sem ordem sequencial. RGB original preservado; segmentação requer revisão.\n')
+            elif detail == 'recovery':
+                log.write('Experimento de cobertura: Médio, máscara automática ativada e alinhamento sem ordem sequencial. A máscara pode falhar; cobertura não é garantida.\n')
+            else:
+                log.write('Máscara automática desativada: o modelo pode incluir ombros e fundo.\n')
             if detail in ('custom', 'head-custom'):
                 log.write('Experimento: limite de 500.000 polígonos, mapas de até 8K. Sem subdivisão artificial.\n')
-            if detail == 'head-custom':
+            if detail == 'person-head':
+                log.write('Experimento de geometria: limite de 500.000 polígonos e textura de até 4K; máscaras mantidas. Sem remendos manuais.\n')
+            if detail in HEAD_PROFILES:
                 log.write(f'Recorte: excluir {base_cut:.0%} da base no eixo Y. Supõe pessoa em pé no volume; não detecta cabeça automaticamente.\n')
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
             with ACTIVE_LOCK: ACTIVE.add(process)
@@ -95,6 +103,8 @@ def run_job(directory: Path, detail='reduced', base_cut=.30):
                     write_status(directory, crop=event)
                 elif event.get('event') == 'configuration':
                     write_status(directory, reconstructionConfiguration=event)
+                elif event.get('event') == 'personMask':
+                    write_status(directory, personMasksCompleted=event['completed'], personMasksTotal=event['total'])
             code = process.wait()
             if timed_out.is_set(): raise RuntimeError('Tempo máximo de 2 horas excedido. Tente menos quadros ou detalhe reduzido.')
             if code: raise RuntimeError(native_error or f'Object Capture encerrou com código {code}. Confira os logs.')

@@ -81,7 +81,7 @@ def preflight(detail, base_cut):
         macos.validate_options(detail, base_cut)
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
-    if ENGINE != 'apple-object-capture' and detail in ('custom', 'head-custom'):
+    if ENGINE != 'apple-object-capture' and detail in ('custom', 'head-custom', 'recovery', 'person-recovery', 'person-head'):
         raise HTTPException(400, 'Teste de geometria disponível no Apple Object Capture.')
     check = requirements()
     if not check['ready']:
@@ -91,7 +91,7 @@ def preflight(detail, base_cut):
         raise HTTPException(429, 'A fila já contém três trabalhos. Aguarde a conclusão.')
 
 def queue_job(directory, counts, detail, base_cut, **metadata):
-    write_status(directory, id=directory.name, status='queued', stage='queued', counts=counts, engine=ENGINE, detail=detail, baseCut=base_cut if detail == 'head-custom' else None, createdAt=time.time(), **metadata)
+    write_status(directory, id=directory.name, status='queued', stage='queued', counts=counts, engine=ENGINE, detail=detail, baseCut=base_cut if detail in macos.HEAD_PROFILES else None, createdAt=time.time(), **metadata)
     if ENGINE == 'apple-object-capture':
         pool.submit(macos.run_job, directory, detail, base_cut)
     else:

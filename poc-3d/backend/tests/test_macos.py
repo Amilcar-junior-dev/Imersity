@@ -7,6 +7,57 @@ from backend import macos
 from backend.pipeline import write_status
 
 class MacTests(unittest.TestCase):
+    def test_recovery_profile_has_no_silent_crop(self):
+        macos.validate_options('recovery', .30)
+        macos.validate_options('person-recovery', .30)
+        macos.validate_options('person-head', .25)
+        with self.assertRaises(ValueError):
+            macos.validate_options('recovery', .25)
+    def test_person_head_forwards_crop_without_changing_medium_profile(self):
+        class Process:
+            stdout=iter(['{"event":"error","message":"Stop test before reconstruction"}\n'])
+            def wait(self):return 1
+            def poll(self):return 1
+        with tempfile.TemporaryDirectory() as folder:
+            base=Path(folder);write_status(base,status='queued')
+            with patch('backend.macos.requirements',return_value={'ready':True}),patch('backend.macos.subprocess.Popen',return_value=Process()) as popen:
+                macos.run_job(base, 'person-head', .25)
+            self.assertEqual(popen.call_args.args[0][-2:], ['person-head','0.25'])
+            self.assertIn('até 4K', (base/'pipeline.log').read_text())
+            self.assertEqual(json.loads((base/'job.json').read_text())['status'], 'failed')
+        with self.assertRaises(ValueError):macos.validate_options('person-recovery', .25)
+    def test_person_mask_progress_is_recorded_without_claiming_success(self):
+        class Process:
+            stdout=iter(['{"event":"stage","stage":"personSegmentation"}\n',
+                         '{"event":"personMask","completed":3,"total":80}\n',
+                         '{"event":"error","message":"Invalid mask"}\n'])
+            def wait(self):return 1
+            def poll(self):return 1
+        with tempfile.TemporaryDirectory() as folder:
+            base=Path(folder);write_status(base,status='queued')
+            with patch('backend.macos.requirements',return_value={'ready':True}),patch('backend.macos.subprocess.Popen',return_value=Process()):
+                macos.run_job(base, 'person-recovery')
+            job=json.loads((base/'job.json').read_text())
+            self.assertEqual(job['status'],'failed')
+            self.assertEqual(job['personMasksCompleted'],3)
+            self.assertEqual(job['personMasksTotal'],80)
+            self.assertFalse((base/'result/head.usdz').exists())
+    def test_recovery_configuration_is_recorded_even_on_failure(self):
+        class Process:
+            stdout=iter(['{"event":"configuration","objectMasking":true,"sampleOrdering":"unordered","outputDetail":"medium"}\n',
+                         '{"event":"error","message":"Alignment failed"}\n'])
+            def wait(self):return 1
+            def poll(self):return 1
+        with tempfile.TemporaryDirectory() as folder:
+            base=Path(folder);write_status(base,status='queued')
+            with patch('backend.macos.requirements',return_value={'ready':True}),patch('backend.macos.subprocess.Popen',return_value=Process()) as popen:
+                macos.run_job(base, 'recovery')
+            self.assertEqual(popen.call_args.args[0][-1], 'recovery')
+            job=json.loads((base/'job.json').read_text())
+            self.assertEqual(job['status'],'failed')
+            self.assertEqual(job['reconstructionConfiguration']['sampleOrdering'],'unordered')
+            self.assertTrue(job['reconstructionConfiguration']['objectMasking'])
+            self.assertIn('máscara automática ativada', (base/'pipeline.log').read_text())
     def test_unavailable_object_capture_never_creates_model(self):
         with tempfile.TemporaryDirectory() as folder:
             base=Path(folder);write_status(base,status='queued')
