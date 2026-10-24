@@ -17,6 +17,26 @@ pnpm-debug.log*
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
+!.env.*.example
+
+# Local captures, generated avatars and credentials
+captures/
+uploads/
+outputs/
+private/
+public/models/
+*.glb
+*.gltf
+*.usdz
+*.fbx
+*.mp4
+*.mov
+*.pem
+*.key
+*.p12
+*.pfx
 
 # System files & IDE
 .DS_Store

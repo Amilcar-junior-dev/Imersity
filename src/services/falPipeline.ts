@@ -42,6 +42,8 @@ export async function convertPhotoTo3DAsset(params: {
   title: string;
   assetType: 'hair_or_bust' | 'glasses' | 'accessory';
   model?: 'fal-ai/hyper3d/rodin' | 'fal-ai/trellis';
+  material?: 'PBR' | 'None' | 'Shaded';
+  prompt?: string;
   apiKey?: string;
   onStatusUpdate?: (status: string) => void;
 }): Promise<GeneratedAsset3D> {
@@ -50,6 +52,8 @@ export async function convertPhotoTo3DAsset(params: {
     title,
     assetType,
     model = 'fal-ai/hyper3d/rodin',
+    material = 'PBR',
+    prompt,
     apiKey,
     onStatusUpdate,
   } = params;
@@ -85,18 +89,30 @@ export async function convertPhotoTo3DAsset(params: {
   );
 
   if (model === 'fal-ai/hyper3d/rodin') {
+    const isClay = material === 'None';
     onStatusUpdate?.(
-      `Iniciando Hyper3D Rodin com ${publicImageUrls.length} foto(s) Multi-View (Geometria + Textura PBR)...`
+      isClay
+        ? `Iniciando Hyper3D Rodin com ${publicImageUrls.length} foto(s) no Modo Escultura / Clay (Geometria Pura Sem Pintura)...`
+        : `Iniciando Hyper3D Rodin com ${publicImageUrls.length} foto(s) Multi-View (Geometria + Textura PBR)...`
     );
 
+    const inputPayload: any = {
+      geometry_file_format: 'glb',
+      material: material === 'None' ? 'PBR' : material,
+      quality: 'medium',
+    };
+
+    if (publicImageUrls.length > 0) {
+      inputPayload.input_image_urls = publicImageUrls;
+      inputPayload.image_url = publicImageUrls[0];
+    }
+
+    if (prompt && prompt.trim().length > 0) {
+      inputPayload.prompt = prompt.trim();
+    }
+
     const result: any = await fal.subscribe('fal-ai/hyper3d/rodin', {
-      input: {
-        input_image_urls: publicImageUrls,
-        ...(publicImageUrls.length > 0 ? { image_url: publicImageUrls[0] } : {}),
-        geometry_file_format: 'glb',
-        material: 'PBR',
-        quality: 'medium',
-      },
+      input: inputPayload,
       logs: true,
       onQueueUpdate: (update) => {
         if (update.status === 'IN_PROGRESS') {
@@ -112,7 +128,7 @@ export async function convertPhotoTo3DAsset(params: {
     if (glbUrl) {
       return {
         id: `asset-${Date.now()}`,
-        title: `${title} (${publicImageUrls.length} Foto(s) Multi-View)`,
+        title: `${title} (${publicImageUrls.length} Foto(s) • ${isClay ? 'Clay Sem Pintura' : 'PBR Colorido'})`,
         sourcePhotoUrl: photoDataUrls[0],
         assetType,
         pipelineUsed: 'fal-ai/hyper3d/rodin',
@@ -162,6 +178,75 @@ export async function convertPhotoTo3DAsset(params: {
   }
 
   throw new Error('Nenhum modelo de IA válido foi executado.');
+}
+
+/**
+ * Gera uma Cabeça Base Anatômica Totalmente Careca (Masculina ou Feminina)
+ * via Fal.ai Hyper3D Rodin (Modo Text-to-3D).
+ * Serve como base permanente, limpa e estanque para vestir qualquer corte de cabelo visagista.
+ */
+export async function generateCanonicalBaldHead(params: {
+  gender: 'masculino' | 'feminino';
+  material?: 'PBR' | 'None';
+  apiKey?: string;
+  onStatusUpdate?: (status: string) => void;
+}): Promise<GeneratedAsset3D> {
+  const { gender, material = 'PBR', apiKey, onStatusUpdate } = params;
+
+  if (!apiKey || apiKey.trim().length < 10) {
+    throw new Error(
+      'Chave da Fal.ai (FAL_KEY) não encontrada ou inválida. Por favor, insira sua chave da fal.ai no campo correspondente.'
+    );
+  }
+
+  const cleanKey = apiKey.trim().replace(/^Key\s+/i, '').replace(/^Bearer\s+/i, '');
+
+  fal.config({
+    credentials: cleanKey,
+    suppressLocalCredentialsWarning: true,
+  });
+
+  const isMale = gender === 'masculino';
+  const prompt = isMale
+    ? 'hyperrealistic anatomical human bald male head bust, smooth watertight cranium, sculpted ears, neutral expression, clean neck, medical anatomical reference, completely bald, clean scalp, no hair'
+    : 'hyperrealistic anatomical human bald female head bust, smooth watertight cranium, sculpted ears, neutral expression, clean neck, medical anatomical reference, completely bald, clean scalp, no hair';
+
+  onStatusUpdate?.(
+    `Gerando Base Careca Anatômica (${isMale ? 'Masculina' : 'Feminina'}) via Text-to-3D Rodin...`
+  );
+
+  const result: any = await fal.subscribe('fal-ai/hyper3d/rodin', {
+    input: {
+      prompt,
+      geometry_file_format: 'glb',
+      material: material === 'None' ? 'PBR' : material,
+      quality: 'medium',
+    },
+    logs: true,
+    onQueueUpdate: (update) => {
+      if (update.status === 'IN_PROGRESS') {
+        const lastLog = update.logs?.[update.logs.length - 1]?.message;
+        onStatusUpdate?.(lastLog || 'Esculpindo crânio careca e orelhas anatômicas na GPU...');
+      }
+    },
+  });
+
+  const data = result?.data || result;
+  const glbUrl = data?.model_mesh?.url || data?.model_file?.url || data?.glb?.url;
+
+  if (glbUrl) {
+    return {
+      id: `base-${gender}-${Date.now()}`,
+      title: `Base Anatômica Careca (${isMale ? 'Masculina' : 'Feminina'})`,
+      sourcePhotoUrl: '',
+      assetType: 'hair_or_bust',
+      pipelineUsed: 'fal-ai/hyper3d/rodin',
+      glbUrl,
+      createdAt: new Date().toLocaleTimeString('pt-BR'),
+    };
+  }
+
+  throw new Error('Hyper3D Rodin não retornou o arquivo .glb da base careca.');
 }
 
 export async function generateHairSimulation2D(params: {

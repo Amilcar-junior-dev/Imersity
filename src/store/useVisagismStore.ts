@@ -9,7 +9,6 @@ import {
 } from '../types/visagism.types';
 import { NormalizedLandmark } from '../services/faceAnalysis';
 import { createDefaultAnatomicalLandmarks } from '../services/faceMeshBuilder';
-import { createRealisticDefaultPortraitDataUrl } from '../services/defaultPortrait';
 
 export const HAIR_PRESETS: HairPreset3D[] = [
   // --- PRESETS MASCULINOS ---
@@ -211,6 +210,12 @@ interface VisagismState {
   customHairGlbUrl: string | null;
   activeSplatUrl: string | null;
   activeCustomGlbUrl: string | null;
+  modelTextureMode: 'original_pbr' | 'projected_photos' | 'clay_unpainted';
+  generationPreset: 'rodin_pbr' | 'rodin_clay' | 'rodin_bald_base';
+  projScale: number;
+  projOffsetY: number;
+  projOffsetX: number;
+  projBlendFeather: number;
   showVisagismWireframe3D: boolean;
   autoRotate3D: boolean;
 
@@ -248,6 +253,12 @@ interface VisagismState {
   setRenderMode3D: (mode: VisagismState['renderMode3D']) => void;
   setActiveSplatUrl: (url: string | null) => void;
   setActiveCustomGlbUrl: (url: string | null) => void;
+  setModelTextureMode: (mode: VisagismState['modelTextureMode']) => void;
+  setGenerationPreset: (preset: VisagismState['generationPreset']) => void;
+  setProjScale: (v: number) => void;
+  setProjOffsetY: (v: number) => void;
+  setProjOffsetX: (v: number) => void;
+  setProjBlendFeather: (v: number) => void;
   toggleVisagismWireframe3D: () => void;
   toggleAutoRotate3D: () => void;
   setFalApiKey: (key: string) => void;
@@ -261,7 +272,7 @@ export const useVisagismStore = create<VisagismState>((set) => ({
   clientName: 'Cliente VIP (Teste Salão)',
   imageGoal: 'Juventude, Leveza & Suavidade',
 
-  capturedPhotoDataUrl: createRealisticDefaultPortraitDataUrl(),
+  capturedPhotoDataUrl: localStorage.getItem('IMERSITY_USER_FRONTAL_PHOTO') || null,
   leftSidePhotoUrl: null,
   rightSidePhotoUrl: null,
   sidePhotosDataUrls: [],
@@ -285,7 +296,7 @@ export const useVisagismStore = create<VisagismState>((set) => ({
   },
   report: null,
 
-  showHairLayer: true,
+  showHairLayer: false,
   selectedHairPreset: HAIR_PRESETS[0],
   hairColors: { ...HAIR_PRESETS[0].defaultColors },
   anisotropyIntensity: 0.88,
@@ -299,6 +310,12 @@ export const useVisagismStore = create<VisagismState>((set) => ({
   customHairGlbUrl: null,
   activeSplatUrl: null,
   activeCustomGlbUrl: null,
+  modelTextureMode: 'clay_unpainted',
+  generationPreset: 'rodin_clay',
+  projScale: 1.0,
+  projOffsetY: 0.0,
+  projOffsetX: 0.0,
+  projBlendFeather: 0.35,
   showVisagismWireframe3D: false,
   autoRotate3D: false,
 
@@ -310,7 +327,14 @@ export const useVisagismStore = create<VisagismState>((set) => ({
   setActiveTab: (activeTab) => set({ activeTab }),
   setClientName: (clientName) => set({ clientName }),
   setImageGoal: (imageGoal) => set({ imageGoal }),
-  setCapturedPhoto: (capturedPhotoDataUrl) => set({ capturedPhotoDataUrl }),
+  setCapturedPhoto: (capturedPhotoDataUrl) => {
+    if (capturedPhotoDataUrl) {
+      localStorage.setItem('IMERSITY_USER_FRONTAL_PHOTO', capturedPhotoDataUrl);
+    } else {
+      localStorage.removeItem('IMERSITY_USER_FRONTAL_PHOTO');
+    }
+    set({ capturedPhotoDataUrl });
+  },
   setLeftSidePhoto: (leftSidePhotoUrl) => set({ leftSidePhotoUrl }),
   setRightSidePhoto: (rightSidePhotoUrl) => set({ rightSidePhotoUrl }),
   addSidePhoto: (dataUrl) =>
@@ -344,7 +368,20 @@ export const useVisagismStore = create<VisagismState>((set) => ({
   selectGlasses: (selectedGlasses) => set({ selectedGlasses }),
   setRenderMode3D: (renderMode3D) => set({ renderMode3D }),
   setActiveSplatUrl: (activeSplatUrl) => set({ activeSplatUrl }),
-  setActiveCustomGlbUrl: (activeCustomGlbUrl) => set({ activeCustomGlbUrl }),
+  setActiveCustomGlbUrl: (activeCustomGlbUrl) => {
+    if (activeCustomGlbUrl) {
+      localStorage.setItem('IMERSITY_SAVED_GLB_URL', activeCustomGlbUrl);
+    } else {
+      localStorage.removeItem('IMERSITY_SAVED_GLB_URL');
+    }
+    set({ activeCustomGlbUrl });
+  },
+  setModelTextureMode: (modelTextureMode) => set({ modelTextureMode }),
+  setGenerationPreset: (generationPreset) => set({ generationPreset }),
+  setProjScale: (projScale) => set({ projScale }),
+  setProjOffsetY: (projOffsetY) => set({ projOffsetY }),
+  setProjOffsetX: (projOffsetX) => set({ projOffsetX }),
+  setProjBlendFeather: (projBlendFeather) => set({ projBlendFeather }),
   toggleVisagismWireframe3D: () =>
     set((state) => ({ showVisagismWireframe3D: !state.showVisagismWireframe3D })),
   toggleAutoRotate3D: () => set((state) => ({ autoRotate3D: !state.autoRotate3D })),

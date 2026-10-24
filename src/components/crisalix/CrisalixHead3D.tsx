@@ -6,9 +6,109 @@ import { useVisagismStore } from '../../store/useVisagismStore';
 import { buildFaceBufferGeometry } from '../../services/faceMeshBuilder';
 import { SculptedEar3D } from './SculptedEar3D';
 import { VitreousEyes3D } from './VitreousEyes3D';
+import { createMultiViewProjectedMaterial } from '../../services/multiViewProjection';
 
-const CustomGLBModel: React.FC<{ url: string; scale?: number }> = ({ url, scale = 1.0 }) => {
+interface ErrorBoundaryProps {
+  onError?: (err: any) => void;
+  fallback?: React.ReactNode;
+  children: React.ReactNode;
+}
+
+class GLTFErrorBoundary extends React.Component<ErrorBoundaryProps, { hasError: boolean }> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any) {
+    console.warn('Erro ao carregar modelo GLB:', error);
+    this.props.onError?.(error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || null;
+    }
+    return this.props.children;
+  }
+}
+
+const CustomGLBModel: React.FC<{
+  url: string;
+  scale?: number;
+  materialMode?: 'original_pbr' | 'projected_photos' | 'clay_unpainted';
+  frontalPhoto?: string | null;
+  leftPhoto?: string | null;
+  rightPhoto?: string | null;
+  skinColorHex?: string;
+  projScale?: number;
+  projOffsetX?: number;
+  projOffsetY?: number;
+  projBlendFeather?: number;
+}> = ({
+  url,
+  scale = 1.0,
+  materialMode = 'original_pbr',
+  frontalPhoto,
+  leftPhoto,
+  rightPhoto,
+  skinColorHex = '#dca88c',
+  projScale = 1.0,
+  projOffsetX = 0.0,
+  projOffsetY = 0.0,
+  projBlendFeather = 0.35,
+}) => {
   const { scene } = useGLTF(url);
+  const loader = useMemo(() => new THREE.TextureLoader(), []);
+
+  const projectedMaterial = useMemo(() => {
+    if (materialMode === 'clay_unpainted') {
+      return new THREE.MeshStandardMaterial({
+        color: '#e4e4e7',
+        roughness: 0.48,
+        metalness: 0.02,
+        side: THREE.DoubleSide,
+      });
+    }
+    if (materialMode === 'projected_photos') {
+      if (!frontalPhoto && !leftPhoto && !rightPhoto) {
+        // Sem fotos reais carregadas: fallback seguro e estético para Clay Puro
+        return new THREE.MeshStandardMaterial({
+          color: '#e4e4e7',
+          roughness: 0.48,
+          metalness: 0.02,
+          side: THREE.DoubleSide,
+        });
+      }
+      return createMultiViewProjectedMaterial(loader, {
+        frontalPhotoUrl: frontalPhoto,
+        leftPhotoUrl: leftPhoto,
+        rightPhotoUrl: rightPhoto,
+        skinColorHex,
+        projectionOpacity: 1.0,
+        projScale,
+        projOffsetX,
+        projOffsetY,
+        projBlendFeather,
+      });
+    }
+    return null;
+  }, [
+    materialMode,
+    frontalPhoto,
+    leftPhoto,
+    rightPhoto,
+    skinColorHex,
+    loader,
+    projScale,
+    projOffsetX,
+    projOffsetY,
+    projBlendFeather,
+  ]);
 
   const normalizedScene = useMemo(() => {
     const cloned = scene.clone(true);
@@ -26,16 +126,33 @@ const CustomGLBModel: React.FC<{ url: string; scale?: number }> = ({ url, scale 
     cloned.position.y = -center.y * autoScale + 0.08;
     cloned.position.z = -center.z * autoScale;
 
+    cloned.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        if (projectedMaterial) {
+          mesh.material = projectedMaterial;
+        } else if (mesh.material) {
+          // Garante DoubleSide em todos os materiais PBR originais do GLB
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((m) => {
+              m.side = THREE.DoubleSide;
+            });
+          } else {
+            mesh.material.side = THREE.DoubleSide;
+          }
+        }
+      }
+    });
+
     return cloned;
-  }, [scene, scale]);
+  }, [scene, scale, projectedMaterial]);
 
   return <primitive object={normalizedScene} />;
 };
 
 /**
  * Cabelo Masculino 3D Esculpido (Fade, Taper, Topete Texturizado & Quiff):
- * Recria o corte masculino contemporâneo com degradê lateral, textura desfiada no topo
- * e curvatura orgânica que elimina a aparência de capacete liso.
+ * Esculpido em mechas anatômicas que vestem suavemente o crânio sem capacete.
  */
 const SculptedMaleHair: React.FC<{
   styleGeometry: string;
@@ -54,25 +171,26 @@ const SculptedMaleHair: React.FC<{
     const isCrew = styleGeometry === 'male_crew';
     const isSidePart = styleGeometry === 'male_side_part';
 
-    const count = isCrew ? 36 : 64;
+    const count = isCrew ? 48 : 80;
 
     for (let i = 0; i < count; i++) {
       const u = Math.random();
       const angle = Math.random() * Math.PI * 2;
-      const rX = Math.sqrt(u) * 0.165;
-      const rZ = Math.sqrt(u) * 0.185;
+      // Raio ajustado para o crânio humano (~8.5cm a 9.5cm)
+      const rX = Math.sqrt(u) * 0.088;
+      const rZ = Math.sqrt(u) * 0.098;
 
       const baseX = Math.cos(angle) * rX;
-      const baseZ = Math.sin(angle) * rZ - 0.03;
-      const baseY = 0.32;
+      const baseZ = Math.sin(angle) * rZ - 0.015;
+      const baseY = 0.165; // Altura do couro cabeludo superior
 
-      let topOffsetZ = 0.04;
-      let topOffsetY = isQuiff ? 0.09 : isCrew ? 0.03 : 0.06;
-      let topOffsetX = isSidePart ? 0.045 : (Math.random() - 0.5) * 0.03;
+      let topOffsetZ = 0.025;
+      let topOffsetY = isQuiff ? 0.055 : isCrew ? 0.018 : 0.038;
+      let topOffsetX = isSidePart ? 0.03 : (Math.random() - 0.5) * 0.02;
 
-      if (baseZ > 0.02) {
-        topOffsetZ += 0.035;
-        topOffsetY += 0.025;
+      if (baseZ > 0.01) {
+        topOffsetZ += 0.02;
+        topOffsetY += 0.015;
       }
 
       const p0 = new THREE.Vector3(baseX, baseY, baseZ);
@@ -83,13 +201,13 @@ const SculptedMaleHair: React.FC<{
       );
       const p2 = new THREE.Vector3(
         baseX + topOffsetX,
-        baseY + topOffsetY + (Math.random() - 0.5) * 0.015,
+        baseY + topOffsetY + (Math.random() - 0.5) * 0.01,
         baseZ + topOffsetZ
       );
 
       clusters.push({
         curve: new THREE.CatmullRomCurve3([p0, p1, p2]),
-        radius: isCrew ? 0.007 : 0.011 + Math.random() * 0.006,
+        radius: isCrew ? 0.005 : 0.007 + Math.random() * 0.004,
       });
     }
 
@@ -98,18 +216,18 @@ const SculptedMaleHair: React.FC<{
 
   return (
     <group scale={[volumeScale, volumeScale, volumeScale]}>
-      {/* 1. Base com Degradê / Taper */}
-      <mesh position={[0, 0.185, -0.045]} scale={[0.86, 1.06, 0.94]}>
-        <sphereGeometry args={[0.237, 36, 36, 0, Math.PI * 2, 0, Math.PI * 0.62]} />
+      {/* 1. Base fina e ajustada do couro cabeludo (sem capacete gigante) */}
+      <mesh position={[0, 0.155, -0.02]} scale={[0.88, 0.42, 0.94]}>
+        <sphereGeometry args={[0.098, 32, 24, 0, Math.PI * 2, 0, Math.PI * 0.55]} />
         <meshPhysicalMaterial
           color={hairColors.rootHex}
           roughness={hairRoughness}
-          clearcoat={0.6}
-          clearcoatRoughness={0.25}
+          clearcoat={0.3}
+          clearcoatRoughness={0.4}
         />
       </mesh>
 
-      {/* 2. Topo Texturizado em Mechas 3D Reais */}
+      {/* 2. Mechas 3D Texturizadas */}
       <group>
         {hairClusters.map((cluster, idx) => (
           <mesh key={idx}>
@@ -118,21 +236,11 @@ const SculptedMaleHair: React.FC<{
               color={idx % 3 === 0 ? hairColors.midHex : hairColors.rootHex}
               roughness={hairRoughness}
               clearcoat={anisotropyIntensity}
-              clearcoatRoughness={0.2}
+              clearcoatRoughness={0.25}
             />
           </mesh>
         ))}
       </group>
-
-      {/* 3. Volume Superior */}
-      <mesh position={[0, 0.28, -0.01]} scale={[0.76, 0.32, 0.78]}>
-        <sphereGeometry args={[0.22, 24, 24, 0, Math.PI * 2, 0, Math.PI * 0.5]} />
-        <meshPhysicalMaterial
-          color={hairColors.midHex}
-          roughness={hairRoughness}
-          clearcoat={anisotropyIntensity}
-        />
-      </mesh>
     </group>
   );
 };
@@ -149,7 +257,7 @@ const FlowingFemaleHair: React.FC<{
 }> = ({ styleGeometry, hairColors, anisotropyIntensity, hairRoughness, volumeScale }) => {
   const strands = useMemo(() => {
     const list: Array<{ curve: THREE.CatmullRomCurve3; radius: number }> = [];
-    const total = styleGeometry === 'pixie_cut' ? 42 : 72;
+    const total = styleGeometry === 'pixie_cut' ? 48 : 84;
 
     for (let i = 0; i < total; i++) {
       const angle = (i / total) * Math.PI * 2;
@@ -159,29 +267,29 @@ const FlowingFemaleHair: React.FC<{
         continue;
       }
 
-      const startX = Math.cos(angle) * 0.195;
-      const startY = 0.33;
-      const startZ = Math.sin(angle) * 0.215 - 0.03;
+      const startX = Math.cos(angle) * 0.095;
+      const startY = 0.165;
+      const startZ = Math.sin(angle) * 0.105 - 0.02;
 
-      let length = 0.52;
-      if (styleGeometry === 'pixie_cut') length = 0.18;
-      else if (styleGeometry === 'long_bob') length = 0.38;
+      let length = 0.28;
+      if (styleGeometry === 'pixie_cut') length = 0.10;
+      else if (styleGeometry === 'long_bob') length = 0.22;
 
       const p0 = new THREE.Vector3(startX, startY, startZ);
       const p1 = new THREE.Vector3(
-        startX * 1.15,
+        startX * 1.12,
         startY - length * 0.5,
-        startZ + (isFront ? 0.05 : -0.03)
+        startZ + (isFront ? 0.03 : -0.02)
       );
       const p2 = new THREE.Vector3(
-        startX * 1.25,
+        startX * 1.18,
         startY - length,
-        startZ + (isFront ? 0.08 : -0.05)
+        startZ + (isFront ? 0.05 : -0.03)
       );
 
       list.push({
         curve: new THREE.CatmullRomCurve3([p0, p1, p2]),
-        radius: 0.012,
+        radius: 0.007,
       });
     }
 
@@ -190,8 +298,9 @@ const FlowingFemaleHair: React.FC<{
 
   return (
     <group scale={[volumeScale, volumeScale, volumeScale]}>
-      <mesh position={[0, 0.19, -0.04]} scale={[0.88, 1.08, 0.95]}>
-        <sphereGeometry args={[0.24, 32, 32, 0, Math.PI * 2, 0, Math.PI * 0.58]} />
+      {/* Base anatômica ajustada */}
+      <mesh position={[0, 0.158, -0.02]} scale={[0.9, 0.45, 0.95]}>
+        <sphereGeometry args={[0.099, 32, 24, 0, Math.PI * 2, 0, Math.PI * 0.55]} />
         <meshPhysicalMaterial
           color={hairColors.rootHex}
           roughness={hairRoughness}
@@ -225,7 +334,10 @@ export const CrisalixHead3D: React.FC<{
   const groupRef = useRef<THREE.Group>(null);
   const {
     capturedPhotoDataUrl,
+    leftSidePhotoUrl,
+    rightSidePhotoUrl,
     activeCustomGlbUrl,
+    modelTextureMode,
     faceLandmarks,
     skinColorHex,
     hairColors,
@@ -236,6 +348,10 @@ export const CrisalixHead3D: React.FC<{
     hairVolumeScale,
     hairOffsetY,
     hairOffsetZ,
+    projScale,
+    projOffsetX,
+    projOffsetY,
+    projBlendFeather,
     autoRotate3D,
   } = useVisagismStore();
 
@@ -293,7 +409,50 @@ export const CrisalixHead3D: React.FC<{
   if (activeCustomGlbUrl) {
     return (
       <group ref={groupRef} position={[0, 1.35, -0.65]}>
-        <CustomGLBModel url={activeCustomGlbUrl} scale={1.05} />
+        <GLTFErrorBoundary
+          onError={() => {
+            console.warn('[GLTFErrorBoundary] Falha ao carregar modelo. Limpando cache local...');
+            localStorage.removeItem('IMERSITY_SAVED_GLB_URL');
+            useVisagismStore.getState().setActiveCustomGlbUrl(null);
+          }}
+        >
+          <CustomGLBModel
+            url={activeCustomGlbUrl}
+            scale={1.05}
+            materialMode={modelTextureMode}
+            frontalPhoto={capturedPhotoDataUrl}
+            leftPhoto={leftSidePhotoUrl}
+            rightPhoto={rightSidePhotoUrl}
+            skinColorHex={skinColorHex}
+            projScale={projScale}
+            projOffsetX={projOffsetX}
+            projOffsetY={projOffsetY}
+            projBlendFeather={projBlendFeather}
+          />
+        </GLTFErrorBoundary>
+
+        {/* Cabelo Modular 3D acoplado ao topo da cabeça do modelo GLB */}
+        {showHairLayer && (
+          <group position={[0, 0.08 + hairOffsetY, hairOffsetZ]}>
+            {isMasculine ? (
+              <SculptedMaleHair
+                styleGeometry={selectedHairPreset.styleGeometry}
+                hairColors={hairColors}
+                anisotropyIntensity={anisotropyIntensity}
+                hairRoughness={hairRoughness}
+                volumeScale={hairVolumeScale}
+              />
+            ) : (
+              <FlowingFemaleHair
+                styleGeometry={selectedHairPreset.styleGeometry}
+                hairColors={hairColors}
+                anisotropyIntensity={anisotropyIntensity}
+                hairRoughness={hairRoughness}
+                volumeScale={hairVolumeScale}
+              />
+            )}
+          </group>
+        )}
       </group>
     );
   }
@@ -350,25 +509,6 @@ export const CrisalixHead3D: React.FC<{
           position={[0.174 * morphJawWidth, 0.08, -0.035]}
           scale={1.0}
         />
-
-        {/* Touca cirúrgica clínica suave apenas no modo Antes (recuada atrás da testa) */}
-        {!showHairLayer && (
-          <mesh position={[0, 0.165, -0.065]} scale={[0.82 * morphJawWidth, 1.03, 0.92]}>
-            <sphereGeometry args={[0.236, 36, 36, 0, Math.PI * 2, 0, Math.PI * 0.6]} />
-            <meshStandardMaterial color="#27272a" roughness={0.7} />
-          </mesh>
-        )}
-
-        {/* Coque na nuca somente para feminino no modo Antes */}
-        {!showHairLayer && !isMasculine && (
-          <mesh position={[0, 0.135, -0.275]}>
-            <sphereGeometry args={[0.078, 24, 24]} />
-            <meshPhysicalMaterial
-              color="#27272a"
-              roughness={0.6}
-            />
-          </mesh>
-        )}
 
         {/* Pescoço anatômico */}
         <mesh position={[0, -0.21, -0.04]}>
