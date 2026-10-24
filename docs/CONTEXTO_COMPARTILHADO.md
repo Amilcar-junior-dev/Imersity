@@ -133,3 +133,23 @@ Entrada para o futuro chat da aplicação:
 > citado antes de definir arquitetura. O núcleo deve funcionar sem 3D; a camada 3D
 > continua experimental. Confira a implementação existente e proponha o adaptador
 > antes de assumir que os GLBs e shaders da POC funcionam na stack atual.
+
+
+## Atualização 3D/XR — segunda captura, 23/10/2026
+
+A importação de um segundo vídeo somou 80 quadros novos aos 80 anteriores, gerando
+uma reconstrução com origens misturadas. Executor recuperou os 80 quadros novos
+pelo manifesto, preservando seus bytes e todos os arquivos anteriores. A nova
+reconstrução em Médio concluiu em 382,1 s no M2; USDZ de 26,1 MiB/49.999 triângulos,
+com 24 imagens ignoradas pelo reconstrutor. A vista frontal foi conferida; ainda
+há fundo e a qualidade/cobertura precisa de avaliação. Isso não valida recorte ou
+transferência de cabelo para a segunda pessoa.
+
+A POC v0.6.8 bloqueia somar outro vídeo ao experimento, verifica origens no navegador
+e backend e impede repetir capturas antigas misturadas. Há botão Novo experimento
+na página de capturas. Passaram 27 testes JS, 18 de backend e o build; o bloqueio
+HTTP 400 também foi verificado no serviço reiniciado. Registro detalhado em
+`poc-3d/docs/ISOLAMENTO_CAPTURAS.md`. Serviço atual em `http://localhost:4181/`.
+Capturas/avatares privados permanecem em `poc-3d/data/`, fora do Git. A aplicação
+React e o contrato continuam sem alteração. Próximo passo: avaliar a captura isolada
+antes de preparar a cabeça e o cabelo para ela.

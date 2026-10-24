@@ -39,3 +39,17 @@ O bloqueio confere a procedência registrada; não reconhece identidades em foto
 Um conjunto manual ou vídeo que já contenha várias pessoas ainda exige revisão.
 Não foi implementada gestão de múltiplos clientes/experimentos simultâneos.
 O núcleo React e o contrato de integração permanecem sem alteração.
+
+## Resultado da recuperação
+
+A reconstrução isolada terminou em 382,1 segundos no M2, em Médio, com 80 quadros
+de 2160 × 3840. Produziu USDZ de aproximadamente 26,1 MiB e 49.999 triângulos.
+O reconstrutor informou que ignorou 24 imagens; a cobertura precisa ser avaliada.
+O modelo da segunda captura foi aberto e inspecionado de frente em Cor sem luz.
+Há artefatos de fundo; isso não aprova fidelidade, cabeça completa, recorte de
+cabelo ou transferência de penteado para esta pessoa.
+
+Após o término, o serviço foi reiniciado na porta local 4181. O diagnóstico
+confirmou Apple M2/Metal disponível; a API marcou a captura de 160 imagens como
+misturada e rejeitou sua repetição com HTTP 400, sem criar outro trabalho. A nova
+captura aparece como concluída, com 80 imagens e sem mistura de origens.
